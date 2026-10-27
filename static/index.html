@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>The Oracle</title>
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <div id="show">
+      <canvas id="stage"></canvas>
+      <div id="headLayers" hidden></div>
+      <header id="marquee">
+        <div id="title">The Oracle</div>
+        <div id="prompt"></div>
+      </header>
+      <div id="subtitle"></div>
+    </div>
+
+    <video id="camera" playsinline muted></video>
+    <div id="toast"></div>
+
+    <div id="debug" hidden>
+      <canvas id="debugCanvas" width="320" height="180"></canvas>
+      <pre id="debugText"></pre>
+    </div>
+
+    <div id="help" hidden>
+      <h2>Keys</h2>
+      <dl>
+        <dt>Space / Enter / arcade button</dt><dd>insert token</dd>
+        <dt>W</dt><dd>wake her (as if someone approached)</dd>
+        <dt>D</dt><dd>debug view: camera, face boxes, state</dd>
+        <dt>[ and ]</dt><dd>wake distance (how close someone must stand)</dd>
+        <dt>A</dt><dd>audience: auto / force adult / force child</dd>
+        <dt>B</dt><dd>button required, or auto-start after the invite</dd>
+        <dt>L</dt><dd>listening on/off (secrets + questions via mic)</dd>
+        <dt>/</dt><dd>type what the guest said (when the mic can't hear)</dd>
+        <dt>G</dt><dd>make the next adult reading glitch</dd>
+        <dt>V</dt><dd>display: screen / foam head</dd>
+        <dt>C</dt><dd>align the face and ball (head mode)</dd>
+        <dt>M</dt><dd>mirror (rear projection)</dd>
+        <dt>I</dt><dd>invert eye tracking</dd>
+        <dt>S / N</dt><dd>subtitles / music box</dd>
+        <dt>F</dt><dd>fullscreen</dd>
+        <dt>Esc</dt><dd>setup panel</dd>
+        <dt>H</dt><dd>this help</dd>
+      </dl>
+    </div>
+
+    <div id="alignHelp" hidden>
+      <h2>Align the head</h2>
+      <pre id="alignStatus"></pre>
+      <dl>
+        <dt>drag dots</dt><dd>corners (warp) or center (move)</dd>
+        <dt>Tab</dt><dd>switch face / ball</dd>
+        <dt>0 / 1–4</dt><dd>arrows move whole surface / one corner</dd>
+        <dt>arrows</dt><dd>nudge (Shift = ×10)</dd>
+        <dt>+ / −  , / .</dt><dd>scale / rotate</dd>
+        <dt>J / K</dt><dd>eyes closer / wider</dd>
+        <dt>U / N</dt><dd>eyes up / down</dd>
+        <dt>T / Y</dt><dd>eyes smaller / bigger</dd>
+        <dt>I / M</dt><dd>mouth up / down</dd>
+        <dt>P</dt><dd>grid + feature crosshairs</dd>
+        <dt>R</dt><dd>reset this surface</dd>
+        <dt>C or Esc</dt><dd>done (saved automatically)</dd>
+      </dl>
+    </div>
+
+    <div id="setup">
+      <div class="card">
+        <h1>The Clockwork Oracle</h1>
+        <ul id="status"></ul>
+        <label>Camera <select id="cameraSelect"></select></label>
+        <label
+          >Display
+          <select id="displaySelect">
+            <option value="screen">Screen (sheet or wall)</option>
+            <option value="head">Foam head + crystal ball</option>
+          </select></label
+        >
+        <button id="beginBtn">Awaken the Oracle</button>
+        <p class="hint">Press <b>H</b> for keys once she's running.</p>
+      </div>
+    </div>
+
+    <script type="module" src="/js/main.js"></script>
+  </body>
+</html>
