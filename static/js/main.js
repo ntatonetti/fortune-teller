@@ -25,6 +25,7 @@ const DEFAULTS = {
   listen: true, // hear secrets and questions through the mic
   audience: "auto", // auto | adult | child (manual override)
   glitchRate: 0.2, // chance an adult reading has a mechanical seizure
+  walkAwayS: 8, // no face for this long mid-reading = they left; she shuts down
 };
 const settings = { ...DEFAULTS, ...JSON.parse(localStorage.getItem("oracle-settings") || "{}") };
 const save = () => localStorage.setItem("oracle-settings", JSON.stringify(settings));
@@ -43,6 +44,14 @@ let tokenWaiter = null;
 let needsAbsence = false;
 let farewellAt = 0;
 let lastFaceAt = 0;
+// Walk-away detection: only once the camera has seen this guest, so a dark
+// booth where faces aren't detected never cuts a real reading short.
+class WalkedAway extends Error {}
+let walkedAway = false;
+let seenThisSession = false;
+const stillHere = () => {
+  if (walkedAway) throw new WalkedAway();
+};
 let nearSince = 0;
 let farSince = 0;
 let lastBeckon = 0;
@@ -150,6 +159,7 @@ const listening = () => settings.listen && ears.usable;
 
 // Show what she hears, as it's heard (screen mode, or head mode with subtitles on).
 function showHeard(text, { secret = false } = {}) {
+  lastFaceAt = performance.now(); // someone talking is someone here
   if (!subtitlesOn()) return;
   const el = $("subtitle");
   el.classList.add("show", "heard");
@@ -170,8 +180,7 @@ function waitForPayment(timeoutMs) {
     const started = performance.now();
     const check = setInterval(() => {
       const now = performance.now();
-      const gone = !watcher.nearest && now - lastFaceAt > 12000;
-      if (now - started > timeoutMs || gone) finish(null);
+      if (now - started > timeoutMs || walkedAway) finish(null);
     }, 250);
     finish = (v) => {
       if (done) return;
@@ -205,19 +214,23 @@ async function askQuestion(kid) {
   if (!listening()) return "";
   state = "ask";
   await sayStock(kid ? "ask_child" : "ask_adult");
+  stillHere();
   sound.cue();
   setPrompt("✦ speak your question ✦");
   puppet.set({ brow: 1, lidL: 1, lidR: 1 });
   const question = await ears.listen({ maxMs: 14000, waitMs: 8000, onHeard: (t) => showHeard(t) });
+  stillHere();
   setPrompt("");
   if (question) showHeard(question);
   await wait(600);
   clearHeard();
   await sayStock(question ? (kid ? "heard_child" : "heard_adult") : kid ? "no_question_child" : "no_question_adult");
+  stillHere();
   return question;
 }
 
 function onToken() {
+  lastFaceAt = performance.now(); // a hand on the button is someone here
   if (state === "sleep") {
     session({ paid: true });
   } else if (tokenWaiter) {
@@ -229,10 +242,37 @@ function onToken() {
 
 // ---------------- the reading ----------------
 
-async function session({ paid = false } = {}) {
+async function session(opts = {}) {
   if (state !== "sleep") return;
+  walkedAway = false;
+  seenThisSession = false;
+  lastFaceAt = performance.now();
+  try {
+    await runReading(opts);
+  } catch (e) {
+    if (!(e instanceof WalkedAway)) console.error("reading failed", e);
+    await shutDown(e instanceof WalkedAway);
+  }
+}
+
+// They left mid-reading (or something broke): stop everything and go to sleep.
+async function shutDown(walked) {
+  state = "farewell"; // out of the reading, so the grumble isn't itself cut off
+  tokenWaiter = null;
+  ears.cancel();
+  speaking?.stop();
+  sound.whir(false);
+  clearHeard();
+  setPrompt("");
+  puppet.glitch(6);
+  sound.grind(0.8, 0.4);
+  walkedAway = false; // let the grumble play
+  if (walked) await sayStock(reading?.kid ? "walkaway_child" : "walkaway_adult");
+  await sleepAgain();
+}
+
+async function runReading({ paid = false } = {}) {
   state = "wake";
-  lastFaceAt = performance.now(); // a face lost from here on means they walked away
   setPrompt("");
   sound.musicBox(false);
   sound.grind(1.5);
@@ -246,6 +286,7 @@ async function session({ paid = false } = {}) {
     shot ? api("/api/greet", { image: shot }).catch((e) => (console.warn(e), null)) : null,
     wait(1900),
   ]);
+  stillHere();
 
   if (greet && greet.audience === "nobody" && !paid) {
     // She woke for a shadow. Grumble and go back to sleep.
@@ -260,6 +301,7 @@ async function session({ paid = false } = {}) {
 
   state = "greet";
   if (greet?.greeting) await say(greet.audio, greet.greeting);
+  stillHere();
 
   if (!paid) {
     state = "invite";
@@ -272,6 +314,7 @@ async function session({ paid = false } = {}) {
     const paidWith = await payment;
     setPrompt("");
     clearHeard();
+    stillHere();
     if (!paidWith) return sleepAgain();
     reading.paidWith = paidWith;
   }
@@ -283,6 +326,7 @@ async function session({ paid = false } = {}) {
     sound.coin();
     await wait(800);
   }
+  stillHere();
   reading.question = await askQuestion(kid);
   await consultAndSpeak();
 }
@@ -310,9 +354,11 @@ async function consultAndSpeak() {
       }).catch((e) => (console.warn(e), null))
     : Promise.resolve(null);
   await sayStock(kid ? "consult_child" : "consult_adult");
+  stillHere();
   const f = await fortuneP;
   const left = 3500 - (performance.now() - started);
   if (left > 0) await wait(left);
+  stillHere();
 
   sound.whir(false);
   puppet.gearTarget = 0.6;
@@ -330,11 +376,13 @@ async function consultAndSpeak() {
   const glitch = !kidNow && (forceGlitch || Math.random() < settings.glitchRate);
   forceGlitch = false;
   await say(f.audio, f.spoken, { glitch });
+  stillHere(); // left mid-fortune: no ticket
 
   state = "dispense";
   sound.ratchet(1.6);
   api("/api/print", f).catch((e) => console.warn("print failed", e));
   await wait(1300);
+  stillHere();
   await sayStock(kidNow ? "farewell_child" : "farewell_adult");
   await sleepAgain();
 }
@@ -440,6 +488,7 @@ function drawDebug() {
     `audience: ${reading?.audience || "-"} ${settings.audience !== "auto" ? `(forced ${settings.audience})` : ""}`,
     `ears: ${!ears.supported ? "unsupported in this browser" : ears.failed ? `failed (${ears.failed})` : settings.listen ? (ears.listening ? "LISTENING" : "on") : "off"} · paid: ${reading?.paidWith || "-"}`,
     `question: ${reading?.question || "-"}`,
+    `walk-away: ${inReading() ? `${((performance.now() - lastFaceAt) / 1000).toFixed(1)}s` : "-"} / ${settings.walkAwayS}s${inReading() && !seenThisSession ? " (face not seen yet: off)" : ""}`,
     `costume: ${reading?.costume || "-"}`,
     `fortune source: ${reading?.fortune?.source || "-"}`,
     `claude: ${server.claude ? "on" : "OFF (canned)"} · voice: ${server.voice} · printer: ${server.printer}`,
@@ -447,14 +496,24 @@ function drawDebug() {
   ].join("\n");
 }
 
+const inReading = () => ["wake", "greet", "invite", "ask", "consult", "speak", "dispense"].includes(state);
+
 function frame(now) {
   watcher.update(now);
   pollGamepads();
   if (state === "sleep") sleepLogic(now);
-  else if (["wake", "greet", "invite", "ask", "speak", "dispense"].includes(state)) {
+  else if (inReading()) {
     if (watcher.nearest) {
       lastFaceAt = now;
-      lookAt(watcher.nearest, now);
+      seenThisSession = true;
+      if (state !== "consult") lookAt(watcher.nearest, now);
+    }
+    const away = now - lastFaceAt;
+    if (seenThisSession && !walkedAway && settings.walkAwayS > 0 && away > settings.walkAwayS * 1000) {
+      walkedAway = true;
+      // Cut off whatever she is waiting on so the reading notices right away.
+      speaking?.stop();
+      ears.cancel();
     }
   }
   puppet.preview = headmap.aligning;
@@ -502,6 +561,8 @@ const KEYS = {
     save();
     toast(`Audience: ${settings.audience}`);
   },
+  j: () => adjustWalkAway(-1),
+  k: () => adjustWalkAway(1),
   "[": () => adjustNear(-0.01),
   "]": () => adjustNear(0.01),
   f: () => (document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen()),
@@ -523,6 +584,12 @@ function toggle(key, label, after) {
   save();
   toast(`${label}: ${settings[key] ? "on" : "off"}`);
   after?.();
+}
+
+function adjustWalkAway(d) {
+  settings.walkAwayS = clamp(settings.walkAwayS + d, 3, 30);
+  save();
+  toast(`Walk away: she gives up after ${settings.walkAwayS}s without a face`);
 }
 
 function adjustNear(d) {
@@ -642,6 +709,7 @@ $("beginBtn").addEventListener("click", begin);
 window.oracleState = () => state; // for scripts/smoke.py
 window.oracleHear = (text) => ears.inject(text); // ditto: stands in for the mic
 window.oracleListening = () => ears.listening;
+window.oracleFakeFace = (f) => (watcher.fake = f); // a face for tests; undefined = real camera
 applyMirror();
 applyDisplay();
 refreshServer();

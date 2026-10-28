@@ -33,6 +33,8 @@ With no keys at all she still runs, using canned fortunes and the built-in macOS
 5. **Consult:** the gears spin and the ball swirls. Adults see her eyes roll back; kids see her peer into the ball.
 6. **Fortune:** she answers their question, weaving in their costume, an omen, a lucky number, and a task for the party. The card prints with "You asked: ..." on it. Then she slumps back to sleep, and won't wake again until that person steps away.
 
+**Walking away:** if every face disappears from the camera for 8 seconds at any point in a reading, she stops mid-sentence, grumbles ("Hmph. Gone without a word..."), and goes back to sleep. If they leave during the fortune, no ticket prints. This only applies once the camera has actually seen the guest, so a dark booth where face detection struggles never cuts a real reading short. Pressing the button or speaking also counts as "still here". **J / K** adjust the 8 seconds, and **D** shows the countdown.
+
 **Listening** uses Chrome's built-in speech recognition, which needs internet but no extra keys. She only listens while she's silent, so she never hears herself. macOS uses the system microphone, so set the input to your webcam's mic, or better, a small USB mic near the glass, in System Settings → Sound → Input. If the party is too loud, the operator can press **/** and type what the guest said. **L** turns listening off, and then she just takes coins and skips the question.
 
 **Keeping her fresh:** every stock line has two or three wordings and never repeats back to back. Each fortune gets a lucky number she hasn't used recently and a random sign to read from (a tarot card, tea leaves, a raven, a cracked mirror and so on), with gentler options for kids. She's also told her recent greetings and fortunes, so she avoids reusing their openings, omens and tasks.
@@ -126,6 +128,7 @@ node --test tests/js/*.test.mjs      # projection-mapping math
 PLAYWRIGHT_BROWSERS_PATH=.venv/ms-playwright .venv/bin/playwright install chromium   # once
 .venv/bin/python scripts/smoke.py    # drives a full reading in headless Chrome, saves screenshots
 HEAD=1 .venv/bin/python scripts/smoke.py   # same in head mode, plus the alignment screen
+WALKAWAY=1 .venv/bin/python scripts/smoke.py   # guest leaves mid-reading (WALKAWAY=speak: mid-fortune)
 ```
 
 Layout:
