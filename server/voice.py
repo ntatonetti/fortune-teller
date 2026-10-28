@@ -93,6 +93,15 @@ STOCK_LINES: dict[str, list[str]] = {
         "I hear footsteps... come into the light, where I can see you.",
     ],
     "silent": ["The spirits are... silent. Press again, and I shall try once more."],
+    "walkaway_adult": [
+        "Hmph. Gone without a word... they always come back.",
+        "Leaving so soon? The fates will remember that.",
+        "Fine. Keep your future a mystery... the gears need their rest.",
+    ],
+    "walkaway_child": [
+        "Oh! Off you go... goodbye, little one!",
+        "Bye-bye! Come back anytime for your fortune!",
+    ],
 }
 
 

@@ -38,6 +38,12 @@ export class Watcher {
 
   // Call once per animation frame.
   update(now) {
+    if (this.fake !== undefined) {
+      // Test hook (window.oracleFakeFace): pretend this face is there, or null for nobody.
+      this.faces = this.fake ? [this.fake] : [];
+      this.nearest = this.fake;
+      return;
+    }
     const v = this.video;
     if (!this.detector || v.readyState < 2 || v.currentTime === this._lastVideoTime) return;
     this._lastVideoTime = v.currentTime;

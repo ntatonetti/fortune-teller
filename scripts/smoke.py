@@ -3,7 +3,9 @@
 Usage: [ADULT=1] .venv/bin/python scripts/smoke.py [outdir]   (server must be running on :8000)
 ADULT=1 forces adult mode and a mid-fortune glitch. HEAD=1 runs in foam-head mode
 and also screenshots the alignment screen. SECRET=1 pays with a whispered secret and
-asks a question (a fake microphone stands in for speech recognition).
+asks a question (a fake microphone stands in for speech recognition). WALKAWAY=1 has
+the guest walk off at the payment step (WALKAWAY=speak: during the fortune) and checks that she shuts down. A steady fake face
+stands in for the camera so the fake video's flicker can't trigger walk-away.
 """
 
 import sys
@@ -39,6 +41,7 @@ with sync_playwright() as p:
     page.screenshot(path=out / "0-setup.png")
     page.click("#beginBtn")
     page.wait_for_timeout(3000)
+    page.evaluate("window.oracleFakeFace(null)")  # nobody yet
     page.keyboard.press("d")
     if os.getenv("ADULT"):
         page.keyboard.press("a")  # force adult mode
@@ -48,7 +51,7 @@ with sync_playwright() as p:
     def state():
         return page.evaluate("window.oracleState()")
 
-    page.keyboard.press("w")
+    page.evaluate("window.oracleFakeFace({x: 0.5, y: 0.45, w: 0.2, h: 0.26})")  # a guest walks up
     page.wait_for_timeout(1200)
     page.screenshot(path=out / "2-waking.png")
     t0 = time.time()
@@ -63,6 +66,26 @@ with sync_playwright() as p:
         while not page.evaluate("window.oracleListening()") and time.time() - t1 < 30:
             page.wait_for_timeout(200)
         page.evaluate(f"window.oracleHear({text!r})")
+
+    if os.getenv("WALKAWAY"):
+        if os.getenv("WALKAWAY") == "speak":  # pay, then leave in the middle of the fortune
+            page.keyboard.press("Space")
+            t1 = time.time()
+            while state() != "speak" and time.time() - t1 < 60:
+                page.wait_for_timeout(200)
+            print("reached:", state())
+        page.evaluate("window.oracleFakeFace(null)")  # ...and walks off
+        t1 = time.time()
+        while state() not in ("farewell", "sleep") and time.time() - t1 < 20:
+            page.wait_for_timeout(200)
+        print(f"walked away -> {state()} after {time.time() - t1:.1f}s")
+        page.screenshot(path=out / "4-walked-away.png")
+        while state() != "sleep" and time.time() - t1 < 30:
+            page.wait_for_timeout(200)
+        print("then:", state())
+        browser.close()
+        print("errors:", errors or "none")
+        sys.exit(0)
 
     if os.getenv("SECRET"):
         hear("I secretly ate the last cupcake")
