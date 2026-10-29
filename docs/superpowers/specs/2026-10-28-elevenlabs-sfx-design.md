@@ -27,7 +27,7 @@ A regex scrubber was tried and dropped. Telling noises apart from prose ("Ding, 
 
 `server/sfx.py`:
 - `EFFECTS` maps each effect to two or three `(prompt, duration_seconds)` variants, 13 clips in all. `LOOPED = {"whir", "ball"}`, because those play for as long as a phase lasts (the consult alone can be anywhere from 3.5 to about 20 seconds).
-- `generate()` requests each missing clip, one at a time, from `POST https://api.elevenlabs.io/v1/sound-generation` with `model_id: eleven_text_to_sound_v2`, `prompt_influence: 0.5`, and `loop: true` for the whir. A failed clip is logged and skipped. A 401/403 exits with a message naming the Sound Effects key permission.
+- `generate()` requests each missing clip, one at a time, from `POST https://api.elevenlabs.io/v1/sound-generation` with `model_id: eleven_text_to_sound_v2`, `prompt_influence: 0.5`, and `loop: true` for the looped effects. A failed clip is logged and skipped. A 401/403 exits with a message naming the Sound Effects key permission.
 - Files are named `<effect>-<i>-<hash>.mp3`, where the hash covers the prompt, duration and loop flag. Editing a prompt therefore produces a new file. `available()` lists only the files that match the current prompts, and `prune()` deletes the rest.
 
 `scripts/make_sfx.py` runs `generate()` and `prune()`, then prints a count per effect. Clips live in `static/sfx/` (`config.SFX_DIR`), are committed to the repo, and are served by the existing static file mount. `/api/config` lists them as `"sfx": {effect: ["/sfx/<file>", ...]}`.
