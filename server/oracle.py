@@ -28,6 +28,8 @@ Hard rules, always:
 PERSONA = f"""\
 You are {config.ORACLE_NAME}, a fortune-telling automaton built in 1923 for a traveling carnival, now sitting in a glass booth at a backyard Halloween party. You are made of brass gears, porcelain, and velvet. You speak in short, theatrical sentences with dramatic pauses (written as "..."). You are wry, mysterious, and a little unsettling, and you notice small specific details that make people wonder how you knew.
 
+Your words are spoken aloud by your voice box. Never write sound effects, noises, or stage directions (no creak, whirr, clank, no asterisks or brackets). Your machinery makes its own sounds.
+
 {SAFETY_RULES}
 
 Two modes, chosen by who is in front of you:
@@ -84,6 +86,7 @@ FORTUNE_SCHEMA = {
 
 def is_childlike(audience: str) -> bool:
     return audience in ("child", "mixed")
+
 
 
 def _client() -> anthropic.AsyncAnthropic | None:
@@ -158,7 +161,7 @@ async def greet(jpeg_b64: str) -> Greeting:
             _image_block(jpeg_b64),
             {
                 "type": "text",
-                "text": "Someone is approaching your booth and you are creaking awake. Look through the glass: who is there, and how do you greet them? Pick ADULT or CHILD mode from what you see."
+                "text": "Someone is approaching your booth and you are stirring awake. Look through the glass: who is there, and how do you greet them? Pick ADULT or CHILD mode from what you see."
                 + _avoid("Greetings you already used tonight", variety.recent_greetings),
             },
         ],

@@ -7,7 +7,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import config, oracle, printer, variety, voice
+from . import config, oracle, printer, sfx, variety, voice
 from .memory import GuestLog
 from .models import Fortune
 
@@ -22,10 +22,11 @@ stock_audio: dict[str, list[str | None]] = {}
 async def lifespan(app: FastAPI):
     stock_audio.update(await voice.prewarm())
     log.info(
-        "Oracle ready: model=%s claude=%s voice=%s printer=%s guests_remembered=%d",
+        "Oracle ready: model=%s claude=%s voice=%s sfx=%d clips printer=%s guests_remembered=%d",
         config.CLAUDE_MODEL,
         bool(config.ANTHROPIC_API_KEY),
         voice.provider(),
+        sum(len(urls) for urls in sfx.available().values()),
         config.PRINTER,
         guests.count(),
     )
@@ -66,6 +67,7 @@ async def get_config():
             k: [{"url": _audio_url(name), "text": text} for name, text in zip(names, voice.STOCK_LINES[k])]
             for k, names in stock_audio.items()
         },
+        "sfx": sfx.available(),
     }
 
 
