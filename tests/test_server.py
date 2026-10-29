@@ -3,6 +3,7 @@ import base64
 import json
 import types
 
+import httpx
 import pytest
 from fastapi.testclient import TestClient
 
@@ -306,3 +307,75 @@ def test_claude_lines_are_scrubbed(monkeypatch):
 
 def test_persona_forbids_sound_effects():
     assert "Never write sound effects" in oracle.PERSONA
+
+
+def _sfx_env(monkeypatch, tmp_path, key="k"):
+    from server import sfx, voice
+    monkeypatch.setattr(sfx.config, "SFX_DIR", tmp_path)
+    monkeypatch.setattr(sfx.config, "ELEVENLABS_API_KEY", key)
+    monkeypatch.setattr(voice, "RETRY_DELAYS_S", (0.01,))
+    return sfx
+
+
+_REAL_ASYNC_CLIENT = httpx.AsyncClient  # captured once, so mocking twice in a test doesn't nest
+
+
+def _mock_eleven(monkeypatch, sfx, handler):
+    mock = lambda **kw: _REAL_ASYNC_CLIENT(transport=httpx.MockTransport(handler), **kw)  # noqa: E731
+    monkeypatch.setattr(sfx.httpx, "AsyncClient", mock)
+
+
+def test_sfx_prewarm_without_key_does_nothing(monkeypatch, tmp_path):
+    sfx = _sfx_env(monkeypatch, tmp_path, key="")
+    asyncio.run(sfx.prewarm())
+    assert sfx.available() == {} and list(tmp_path.iterdir()) == []
+
+
+def test_sfx_prewarm_generates_every_variant_with_loop_only_for_whir(monkeypatch, tmp_path):
+    sfx = _sfx_env(monkeypatch, tmp_path)
+    seen = []
+    def handler(req):
+        body = json.loads(req.content)
+        seen.append(body)
+        assert req.url.path == "/v1/sound-generation" and req.headers["xi-api-key"] == "k"
+        return httpx.Response(200, content=b"ID3sfx")
+    _mock_eleven(monkeypatch, sfx, handler)
+    asyncio.run(sfx.prewarm())
+    total = sum(len(v) for v in sfx.EFFECTS.values())
+    assert len(seen) == total
+    assert all(b["loop"] == (b["text"] in [p for p, _ in sfx.EFFECTS["whir"]]) for b in seen)
+    assert all(0.5 <= b["duration_seconds"] <= 30 and b["model_id"] == "eleven_text_to_sound_v2" for b in seen)
+    assert set(sfx.available()) == {"creak", "grind", "whir", "coin", "ratchet"}
+
+
+def test_sfx_partial_failure_is_skipped_then_retried_only_for_missing(monkeypatch, tmp_path):
+    sfx = _sfx_env(monkeypatch, tmp_path)
+    creak_prompts = {p for p, _ in sfx.EFFECTS["creak"]}
+    def flaky(req):
+        failing = json.loads(req.content)["text"] in creak_prompts
+        return httpx.Response(500) if failing else httpx.Response(200, content=b"ID3")
+    _mock_eleven(monkeypatch, sfx, flaky)
+    asyncio.run(sfx.prewarm())  # must not raise
+    assert "creak" not in sfx.available() and "coin" in sfx.available()
+    second = []
+    _mock_eleven(monkeypatch, sfx, lambda req: second.append(json.loads(req.content)["text"]) or httpx.Response(200, content=b"ID3"))
+    asyncio.run(sfx.prewarm())
+    assert sorted(second) == sorted(creak_prompts)  # only the missing variants are requested
+    assert len(list(tmp_path.iterdir())) == sum(len(v) for v in sfx.EFFECTS.values())
+
+
+def test_sfx_stale_files_are_not_advertised(monkeypatch, tmp_path):
+    sfx = _sfx_env(monkeypatch, tmp_path)
+    (tmp_path / "creak-0-deadbeef00.mp3").write_bytes(b"old")
+    assert sfx.available() == {}
+
+
+def test_sfx_route_serves_clips_and_blocks_traversal(monkeypatch, tmp_path):
+    sfx = _sfx_env(monkeypatch, tmp_path)
+    prompt, dur = sfx.EFFECTS["coin"][0]
+    name = sfx.filename("coin", 0, prompt, dur)
+    (tmp_path / name).write_bytes(b"ID3coin")
+    client = TestClient(app_module.app)
+    assert client.get(f"/api/sfx/{name}").content == b"ID3coin"
+    assert client.get("/api/sfx/..%2F..%2F.env").status_code == 404
+    assert client.get("/api/config").json()["sfx"]["coin"] == [f"/api/sfx/{name}"]

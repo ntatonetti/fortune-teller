@@ -57,6 +57,8 @@ With no keys at all she still runs, using canned fortunes and the built-in macOS
 
 Each reading is about 500–700 characters of speech. Check that your plan's monthly character quota covers your guest count. The fixed lines are rendered once and cached in `data/tts_cache/`.
 
+The same key also makes her machine sounds: the creaks, grinding gears, the whir while she consults, the coin drop and the ticket ratchet. They're generated once at startup (11 short clips) into `data/sfx/` and reused after that. Delete a file to regenerate it. Without a key she uses the built-in synthesized sounds.
+
 The voice is pushed through a phonograph filter in the browser (band-limited, slightly overdriven, wobbly, crackly), so a clean voice ends up sounding like a worn record.
 
 ## The booth
