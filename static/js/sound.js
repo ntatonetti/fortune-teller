@@ -1,6 +1,17 @@
 // All sound is synthesized with WebAudio (no asset files), plus a "phonograph"
 // chain the oracle's voice runs through. The voice analyser drives the jaw.
 
+// Starting levels for the ElevenLabs clips against her voice; tune by ear.
+const CLIP_GAIN = { creak: 1, grind: 1, whir: 0.6, coin: 1, ratchet: 1 };
+
+// A random index in [0, n), never `last` when there's a choice.
+export function pickVariant(n, last, rand = Math.random) {
+  if (n <= 1) return 0;
+  let i = Math.floor(rand() * (n - 1));
+  if (i >= last) i++;
+  return i;
+}
+
 export class Sound {
   constructor() {
     this.ctx = new AudioContext();
@@ -16,6 +27,8 @@ export class Sound {
     this._noise = this._makeNoise(2);
     this._buffers = new Map();
     this._loops = {};
+    this._clips = {}; // effect -> AudioBuffer[] from ElevenLabs, when generated
+    this._lastClip = {};
   }
 
   async resume() {
@@ -171,6 +184,40 @@ export class Sound {
 
   // ---------- sound effects ----------
 
+  // Loads the server's effect clips. A clip that won't load just leaves the synth in charge.
+  async loadEffects(map) {
+    await Promise.all(
+      Object.entries(map).map(async ([name, urls]) => {
+        const bufs = await Promise.all(
+          urls.map((url) => this.load(url).catch((e) => console.warn("sound effect failed", url, e))),
+        );
+        const ok = bufs.filter(Boolean);
+        if (ok.length) this._clips[name] = ok;
+      }),
+    );
+  }
+
+  // Plays a variant of an effect clip; null if there's no clip (use the synth).
+  _playClip(name, { vol = 1, seconds = null, loop = false } = {}) {
+    const clips = this._clips[name];
+    if (!clips?.length) return null;
+    const i = pickVariant(clips.length, this._lastClip[name] ?? -1);
+    this._lastClip[name] = i;
+    const t = this.ctx.currentTime;
+    const src = this.ctx.createBufferSource();
+    src.buffer = clips[i];
+    src.loop = loop;
+    const gain = this.ctx.createGain();
+    gain.gain.value = CLIP_GAIN[name] * vol;
+    src.connect(gain).connect(this.sfx);
+    src.start(t);
+    if (seconds != null && seconds < clips[i].duration) {
+      gain.gain.setTargetAtTime(0.0001, t + Math.max(0, seconds - 0.15), 0.05);
+      src.stop(t + seconds + 0.1);
+    }
+    return { src, gain };
+  }
+
   _makeNoise(seconds) {
     const len = seconds * this.ctx.sampleRate;
     const buf = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
@@ -220,6 +267,7 @@ export class Sound {
 
   // Grinding gears: a lumpy low sawtooth plus gritty noise.
   grind(duration = 1.2, vol = 0.5) {
+    if (this._playClip("grind", { vol: vol / 0.5, seconds: duration })) return;
     const ctx = this.ctx;
     const t = ctx.currentTime;
     const osc = ctx.createOscillator();
@@ -259,6 +307,7 @@ export class Sound {
 
   // A servo creak: a resonant glide.
   creak(vol = 0.25) {
+    if (this._playClip("creak", { vol: vol / 0.25 })) return;
     const ctx = this.ctx;
     const t = ctx.currentTime;
     const osc = ctx.createOscillator();
@@ -279,6 +328,7 @@ export class Sound {
 
   // Token drops into the slot: two metallic bounces and a clunk.
   coin() {
+    if (this._playClip("coin")) return;
     const ctx = this.ctx;
     const ping = (when, vol) => {
       const t = ctx.currentTime + when;
@@ -310,6 +360,7 @@ export class Sound {
 
   // Card dispenser: a fast ratchet.
   ratchet(seconds = 1.6) {
+    if (this._playClip("ratchet", { seconds })) return;
     for (let i = 0; i < seconds * 22; i++) this.tick(1500 + (i % 2) * 400, 0.3, i / 22);
   }
 
@@ -324,6 +375,15 @@ export class Sound {
     }
     clearInterval(l.whirTicks);
     if (!on) return;
+    const clip = this._playClip("whir", { loop: true });
+    if (clip) {
+      const { src, gain } = clip;
+      const level = gain.gain.value;
+      gain.gain.setValueAtTime(0.0001, this.ctx.currentTime);
+      gain.gain.setTargetAtTime(level, this.ctx.currentTime, 0.15);
+      l.whir = { nodes: [src], gain };
+      return;
+    }
     const ctx = this.ctx;
     const n = this._noiseSrc(true);
     const bp = ctx.createBiquadFilter();

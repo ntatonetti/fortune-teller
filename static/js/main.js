@@ -702,6 +702,7 @@ async function begin() {
   Object.values(server.stock || {})
     .flat()
     .forEach((s) => s.url && sound.load(s.url).catch(() => {}));
+  sound.loadEffects(server.sfx || {});
   if (state === "boot") await sleepAgain();
 }
 
@@ -710,6 +711,7 @@ window.oracleState = () => state; // for scripts/smoke.py
 window.oracleHear = (text) => ears.inject(text); // ditto: stands in for the mic
 window.oracleListening = () => ears.listening;
 window.oracleFakeFace = (f) => (watcher.fake = f); // a face for tests; undefined = real camera
+window.oracleSound = () => sound; // for poking effects from DevTools
 applyMirror();
 applyDisplay();
 refreshServer();
