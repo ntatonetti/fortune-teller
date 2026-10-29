@@ -41,8 +41,13 @@ EFFECTS: dict[str, list[tuple[str, float]]] = {
         ("paper ticket being ratcheted out of an antique fortune machine, fast clicking", 2.0),
         ("old mechanical card dispenser clattering out a printed card", 1.8),
     ],
+    "ball": [
+        ("mysterious sparkling ambient shimmer of a glowing crystal ball, soft glassy chimes and a low airy drone, magical and eerie, no melody", 10.0),
+        ("enchanted crystal orb humming softly, twinkling glass sparkles over a dark ethereal pad, fortune teller ambience, no melody", 10.0),
+    ],
 }
-LOOPED = frozenset({"whir"})  # plays for as long as she consults, so it must loop seamlessly
+# These play for as long as a phase lasts, so they must loop seamlessly.
+LOOPED = frozenset({"whir", "ball"})
 
 
 def filename(name: str, i: int, prompt: str, duration: float) -> str:

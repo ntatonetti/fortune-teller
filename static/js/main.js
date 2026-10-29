@@ -280,6 +280,7 @@ async function runReading({ paid = false } = {}) {
   puppet.set({ slump: 0, lidL: 1, lidR: 1, brow: 1 });
   puppet.gearTarget = 0.6;
   puppet.ballTarget = 0.45;
+  sound.ball(0.45);
 
   const shot = watcher.snapshot();
   const [greet] = await Promise.all([
@@ -339,6 +340,7 @@ async function consultAndSpeak() {
   sound.shimmer();
   puppet.gearTarget = 2.6;
   puppet.ballTarget = 1;
+  sound.ball(1);
   // Adults get the eyes rolled up into the head; kids see her gaze into the ball.
   puppet.set(kid ? { eyeX: 0, eyeY: 1, lidL: 0.6, lidR: 0.6 } : { eyeX: 0, eyeY: -1, lidL: 0.35, lidR: 0.35, tilt: -6 });
 
@@ -363,6 +365,7 @@ async function consultAndSpeak() {
   sound.whir(false);
   puppet.gearTarget = 0.6;
   puppet.ballTarget = 0.55;
+  sound.ball(0.55);
   puppet.set({ lidL: 1, lidR: 1, tilt: 0 });
   setPrompt("");
 
@@ -394,6 +397,7 @@ async function sleepAgain() {
   puppet.set({ slump: 1, lidL: 0, lidR: 0, brow: 0, tilt: 0, turn: 0, eyeX: 0, eyeY: 0 });
   puppet.gearTarget = 0.15;
   puppet.ballTarget = 0.15;
+  sound.ball(0); // asleep: the music box plays alone
   await wait(1600);
   state = "sleep";
   needsAbsence = true;
@@ -702,7 +706,7 @@ async function begin() {
   Object.values(server.stock || {})
     .flat()
     .forEach((s) => s.url && sound.load(s.url).catch(() => {}));
-  sound.loadEffects(server.sfx || {});
+  await sound.loadEffects(server.sfx || {}); // before she settles, so even the first creak is a clip
   if (state === "boot") await sleepAgain();
 }
 

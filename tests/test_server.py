@@ -288,7 +288,7 @@ def _mock_eleven(monkeypatch, sfx, handler):
     monkeypatch.setattr(sfx.httpx, "Client", lambda **kw: _REAL_CLIENT(transport=httpx.MockTransport(handler), **kw))
 
 
-def test_sfx_generate_makes_every_variant_with_loop_only_for_whir(monkeypatch, tmp_path):
+def test_sfx_generate_makes_every_variant_with_loop_only_for_whir_and_ball(monkeypatch, tmp_path):
     sfx = _sfx_env(monkeypatch, tmp_path)
     seen = []
 
@@ -299,9 +299,9 @@ def test_sfx_generate_makes_every_variant_with_loop_only_for_whir(monkeypatch, t
 
     _mock_eleven(monkeypatch, sfx, handler)
     sfx.generate()
-    whir = {p for p, _ in sfx.EFFECTS["whir"]}
+    looped = {p for name in ("whir", "ball") for p, _ in sfx.EFFECTS[name]}
     assert len(seen) == sum(len(v) for v in sfx.EFFECTS.values())
-    assert all(b["loop"] == (b["text"] in whir) for b in seen)
+    assert all(b["loop"] == (b["text"] in looped) for b in seen)
     assert all(0.5 <= b["duration_seconds"] <= 30 and b["model_id"] == "eleven_text_to_sound_v2" for b in seen)
     assert set(sfx.available()) == set(sfx.EFFECTS)
 
@@ -341,6 +341,6 @@ def test_sfx_stale_clips_are_ignored_and_pruned(monkeypatch, tmp_path):
 def test_committed_clips_are_advertised_and_served():
     client = TestClient(app_module.app)
     clips = client.get("/api/config").json()["sfx"]
-    assert set(clips) == {"creak", "grind", "whir", "coin", "ratchet"}  # run scripts/make_sfx.py if this fails
+    assert set(clips) == {"creak", "grind", "whir", "coin", "ratchet", "ball"}  # run scripts/make_sfx.py if this fails
     r = client.get(clips["whir"][0])
     assert r.status_code == 200 and r.content[:3] == b"ID3"

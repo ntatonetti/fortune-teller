@@ -57,7 +57,7 @@ With no keys at all she still runs, using canned fortunes and the built-in macOS
 
 Each reading is about 500–700 characters of speech. Check that your plan's monthly character quota covers your guest count. The fixed lines are rendered once and cached in `data/tts_cache/`.
 
-Her machine sounds (the creaks, grinding gears, the whir while she consults, the coin drop and the ticket ratchet) are real ElevenLabs sound effects, committed in `static/sfx/`, so the booth never generates them at party time. To remake them, edit the prompts in `server/sfx.py` (or delete a file) and run `.venv/bin/python scripts/make_sfx.py`. That script only requests missing clips and removes clips from old prompts. Then commit `static/sfx/`. The key needs the **Sound Effects** permission as well as Text to Speech (Developers → API Keys → edit the key). Any sound without a clip uses the built-in synthesized version.
+Her machine sounds (the creaks, grinding gears, the whir while she consults, the coin drop, the ticket ratchet, and the crystal ball's sparkly hum, which follows its glow while she's awake) are real ElevenLabs sound effects, committed in `static/sfx/`, so the booth never generates them at party time. To remake them, edit the prompts in `server/sfx.py` (or delete a file) and run `.venv/bin/python scripts/make_sfx.py`. That script only requests missing clips and removes clips from old prompts. Then commit `static/sfx/`. The key needs the **Sound Effects** permission as well as Text to Speech (Developers → API Keys → edit the key). Any sound without a clip uses the built-in synthesized version.
 
 The voice is pushed through a phonograph filter in the browser (band-limited, slightly overdriven, wobbly, crackly), so a clean voice ends up sounding like a worn record.
 

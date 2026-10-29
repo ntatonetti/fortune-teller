@@ -2,7 +2,7 @@
 // chain the oracle's voice runs through. The voice analyser drives the jaw.
 
 // Starting levels for the ElevenLabs clips against her voice; tune by ear.
-const CLIP_GAIN = { creak: 1, grind: 1, whir: 0.6, coin: 1, ratchet: 1 };
+const CLIP_GAIN = { creak: 1, grind: 1, whir: 0.6, coin: 1, ratchet: 1, ball: 0.5 };
 
 // A random index in [0, n), never `last` when there's a choice.
 export function pickVariant(n, last, rand = Math.random) {
@@ -409,6 +409,28 @@ export class Sound {
     [n, sweep, hum].forEach((s) => s.start());
     l.whir = { nodes: [n, sweep, hum], gain };
     l.whirTicks = setInterval(() => this.tick(2600 + Math.random() * 600, 0.15), 125);
+  }
+
+  // The crystal ball's ambient shimmer. Its loudness follows the ball's glow; 0 fades it out.
+  // Clip only: without one the ball stays quiet, as it always has.
+  ball(level) {
+    const l = this._loops;
+    const t = this.ctx.currentTime;
+    if (level <= 0) {
+      if (l.ball) {
+        const { src, gain } = l.ball;
+        gain.gain.setTargetAtTime(0.0001, t, 0.4);
+        setTimeout(() => src.stop(), 2500);
+        l.ball = null;
+      }
+      return;
+    }
+    if (!l.ball) {
+      l.ball = this._playClip("ball", { loop: true });
+      if (!l.ball) return;
+      l.ball.gain.gain.setValueAtTime(0.0001, t);
+    }
+    l.ball.gain.gain.setTargetAtTime(CLIP_GAIN.ball * level, t, 0.5);
   }
 
   // A faint, out-of-tune music box waltz for the idle attract loop.
