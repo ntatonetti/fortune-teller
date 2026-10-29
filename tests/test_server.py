@@ -344,3 +344,31 @@ def test_committed_clips_are_advertised_and_served():
     assert set(clips) == {"creak", "grind", "whir", "coin", "ratchet", "ball"}  # run scripts/make_sfx.py if this fails
     r = client.get(clips["whir"][0])
     assert r.status_code == 200 and r.content[:3] == b"ID3"
+
+
+def test_usb_ticket_is_plain_ascii_and_cut(monkeypatch):
+    from escpos import printer as escpos_printer
+
+    made = {}
+
+    def fake_usb(vendor, product, **kw):
+        made.update(kw, vendor=vendor, product=product)
+        made["dummy"] = escpos_printer.Dummy()
+        return made["dummy"]
+
+    monkeypatch.setattr(escpos_printer, "Usb", fake_usb)
+    monkeypatch.setattr(printer.config, "PRINTER_WIDTH_CHARS", 48)
+    f = Fortune(
+        audience="adult", group_size=1, costume="c", spoken="s", card_title="The “Crooked” Hat",
+        card_text="The cat’s whiskers twitch—and then… silence.", lucky_number=7,
+        task="Say ‘boo’ to a ghost.", gist="g", question="Will it rain? " * 10,
+    )
+    printer._print_usb(f)
+
+    out = made["dummy"].output
+    assert (made["in_ep"], made["out_ep"]) == (0x81, 0x01)
+    text = bytes(b for b in out if 0x20 <= b < 0x7F).decode()
+    assert "cat's whiskers twitch--and then... silence." in text
+    assert '"CROOKED" HAT' in text and "'boo'" in text
+    assert not any(b >= 0x80 for b in out)  # no codepage-dependent bytes for the punctuation
+    assert b"\x1dV" in out  # paper is cut (GS V)
