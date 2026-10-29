@@ -44,4 +44,4 @@ MEMORY_RECALL = int(os.getenv("MEMORY_RECALL", "15"))
 MEMORY_MAX_AGE_H = float(os.getenv("MEMORY_MAX_AGE_H", "12"))  # older guests are forgotten
 
 CACHE_DIR = ROOT / "data" / "tts_cache"
-SFX_DIR = ROOT / "assets" / "sfx"  # committed; regenerate with scripts/make_sfx.py
+SFX_DIR = ROOT / "static" / "sfx"  # committed; regenerate with scripts/make_sfx.py

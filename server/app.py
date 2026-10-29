@@ -124,14 +124,6 @@ async def audio(name: str):
     return FileResponse(path, media_type="audio/mpeg" if path.suffix == ".mp3" else "audio/wav")
 
 
-@app.get("/api/sfx/{name}")
-async def sfx_clip(name: str):
-    path = sfx.clip_path(name)
-    if path is None:
-        raise HTTPException(404)
-    return FileResponse(path, media_type="audio/mpeg")
-
-
 @app.get("/api/guests")
 async def list_guests():
     return guests.recent(1000)

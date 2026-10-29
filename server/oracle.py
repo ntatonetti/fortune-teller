@@ -8,7 +8,6 @@ Both fall back to canned lines if Claude is unavailable, so the booth never stal
 
 import json
 import logging
-import re
 
 import anthropic
 from pydantic import ValidationError
@@ -88,26 +87,6 @@ FORTUNE_SCHEMA = {
 def is_childlike(audience: str) -> bool:
     return audience in ("child", "mixed")
 
-
-# Stage directions and noises Claude sometimes writes, which TTS would read aloud.
-_ASIDE = re.compile(r"\*[^*]*\*|\[[^\]]*\]|\([^)]*\)")
-_SOUND = r"(?:c+r+e+a+k+|w+h+i+r+|c+l+a+n+k+|c+l+i+n+k+|c+l+i+c+k+|c+l+a+c+k+|t+i+c+k+|t+o+c+k+|g+r+i+n+d+|b+z+t+|h+i+s+s+|d+i+n+g+|c+l+u+n+k+)"
-# A run of sound words that is a whole fragment of its own: it opens the text, or sits
-# between two sentences, e.g. "Creak... whirrr... Ah" or "sealed... clank! Beware".
-# Words inside a sentence ("Ding, dong, the witch", "goes tick... tock... and") stay.
-_RUN = rf"(?i:{_SOUND}(?:[.,!?…—-]+\s*{_SOUND})*)[.!?…]+"
-_FRAGMENT = re.compile(rf"^{_RUN}(?:\s+|$)|(?<=[.!?…])\s+{_RUN}(?=\s+[A-Z]|\s*$)")
-
-
-def scrub_spoken(text: str) -> str:
-    """Strips sound effects so she never says "creak" out loud; the speakers do that."""
-    out = _ASIDE.sub(" ", text)
-    while (cleaner := _FRAGMENT.sub("", out)) != out:
-        out = cleaner
-    out = re.sub(r"\s+", " ", out).strip().lstrip(".,!?…—- ")
-    if not out:
-        return text
-    return out[0].upper() + out[1:]
 
 
 def _client() -> anthropic.AsyncAnthropic | None:
@@ -191,7 +170,6 @@ async def greet(jpeg_b64: str) -> Greeting:
     if data:
         try:
             g = Greeting(**data)
-            g.greeting = scrub_spoken(g.greeting)
             if g.audience != "nobody":
                 variety.recent_greetings.append(g.greeting)
             return g
@@ -258,8 +236,6 @@ async def fortune(
     if data:
         try:
             result = Fortune(**data, question=question)
-            result.spoken = scrub_spoken(result.spoken)
-            result.card_text = scrub_spoken(result.card_text)
             # Stay on the cautious side: once a child was seen, it is a child reading.
             if is_childlike(audience_hint) and not is_childlike(result.audience):
                 result.audience = audience_hint

@@ -270,163 +270,77 @@ def test_card_prints_the_question():
     assert any("…" in line for line in lines)  # long questions are shortened
 
 
-@pytest.mark.parametrize(
-    "raw, clean",
-    [
-        ("*creak* Ah... a visitor.", "Ah... a visitor."),
-        ("Creak... whirrr... Ah, a pirate! Come closer...", "Ah, a pirate! Come closer..."),
-        ("Creak, creak! The gears wake.", "The gears wake."),
-        ("Whirrr... the gears remember you.", "The gears remember you."),
-        ("Hmm [gears grinding] your future glows.", "Hmm your future glows."),
-        ("Your fate is sealed... clank! Beware the raven.", "Your fate is sealed... Beware the raven."),
-        ("(a long hiss) Lucky seven.", "Lucky seven."),
-        ("The gears whir in the dark... your ticket awaits.", "The gears whir in the dark... your ticket awaits."),
-        ("*whirrr*", "*whirrr*"),
-        # sound words inside real sentences are prose, not effects
-        ("Ding, dong, the witch is dead.", "Ding, dong, the witch is dead."),
-        ("Work hard, grind, and the gold comes.", "Work hard, grind, and the gold comes."),
-        ("A clock goes tick... tock... and you wait.", "A clock goes tick... tock... and you wait."),
-        ("Yes, click, the lock gives way.", "Yes, click, the lock gives way."),
-    ],
-)
-def test_scrub_spoken(raw, clean):
-    assert oracle.scrub_spoken(raw) == clean
-
-
-def test_claude_lines_are_scrubbed(monkeypatch):
-    async def fake_ask(schema, *a, **k):
-        if schema is oracle.GREET_SCHEMA:
-            return {"audience": "adult", "group_size": 1, "costume": "a pirate", "greeting": "*creak* Ahoy... come closer."}
-        return {
-            "audience": "adult", "group_size": 1, "costume": "a pirate", "spoken": "Clank! Seven ravens.",
-            "card_title": "The Raven", "card_text": "*whirr* Seven ravens.", "lucky_number": 7,
-            "task": "Toast a ghost.", "gist": "ravens",
-        }
-
-    monkeypatch.setattr(oracle, "_ask", fake_ask)
-    g = asyncio.run(oracle.greet("x" * 200))
-    assert g.greeting == "Ahoy... come closer."
-    f = asyncio.run(oracle.fortune("x" * 200, "adult", "a pirate", []))
-    assert f.spoken == "Seven ravens." and f.card_text == "Seven ravens."
-
-
 def test_persona_forbids_sound_effects():
     assert "Never write sound effects" in oracle.PERSONA
 
 
 def _sfx_env(monkeypatch, tmp_path, key="k"):
-    from server import sfx, voice
+    from server import sfx
     monkeypatch.setattr(sfx.config, "SFX_DIR", tmp_path)
     monkeypatch.setattr(sfx.config, "ELEVENLABS_API_KEY", key)
-    monkeypatch.setattr(voice, "RETRY_DELAYS_S", (0.01,))
     return sfx
 
 
-_REAL_ASYNC_CLIENT = httpx.AsyncClient  # captured once, so mocking twice in a test doesn't nest
+_REAL_CLIENT = httpx.Client  # captured once, so mocking twice in a test doesn't nest
 
 
 def _mock_eleven(monkeypatch, sfx, handler):
-    mock = lambda **kw: _REAL_ASYNC_CLIENT(transport=httpx.MockTransport(handler), **kw)  # noqa: E731
-    monkeypatch.setattr(sfx.httpx, "AsyncClient", mock)
-
-
-def test_sfx_generate_without_key_does_nothing(monkeypatch, tmp_path):
-    sfx = _sfx_env(monkeypatch, tmp_path, key="")
-    asyncio.run(sfx.generate())
-    assert sfx.available() == {} and list(tmp_path.iterdir()) == []
+    monkeypatch.setattr(sfx.httpx, "Client", lambda **kw: _REAL_CLIENT(transport=httpx.MockTransport(handler), **kw))
 
 
 def test_sfx_generate_makes_every_variant_with_loop_only_for_whir(monkeypatch, tmp_path):
     sfx = _sfx_env(monkeypatch, tmp_path)
     seen = []
+
     def handler(req):
-        body = json.loads(req.content)
-        seen.append(body)
         assert req.url.path == "/v1/sound-generation" and req.headers["xi-api-key"] == "k"
+        seen.append(json.loads(req.content))
         return httpx.Response(200, content=b"ID3sfx")
+
     _mock_eleven(monkeypatch, sfx, handler)
-    asyncio.run(sfx.generate())
-    total = sum(len(v) for v in sfx.EFFECTS.values())
-    assert len(seen) == total
-    assert all(b["loop"] == (b["text"] in [p for p, _ in sfx.EFFECTS["whir"]]) for b in seen)
+    sfx.generate()
+    whir = {p for p, _ in sfx.EFFECTS["whir"]}
+    assert len(seen) == sum(len(v) for v in sfx.EFFECTS.values())
+    assert all(b["loop"] == (b["text"] in whir) for b in seen)
     assert all(0.5 <= b["duration_seconds"] <= 30 and b["model_id"] == "eleven_text_to_sound_v2" for b in seen)
-    assert set(sfx.available()) == {"creak", "grind", "whir", "coin", "ratchet"}
+    assert set(sfx.available()) == set(sfx.EFFECTS)
 
 
-def test_sfx_partial_failure_is_skipped_then_retried_only_for_missing(monkeypatch, tmp_path):
+def test_sfx_rerun_requests_only_missing_clips(monkeypatch, tmp_path):
     sfx = _sfx_env(monkeypatch, tmp_path)
-    creak_prompts = {p for p, _ in sfx.EFFECTS["creak"]}
-    def flaky(req):
-        failing = json.loads(req.content)["text"] in creak_prompts
-        return httpx.Response(500) if failing else httpx.Response(200, content=b"ID3")
-    _mock_eleven(monkeypatch, sfx, flaky)
-    asyncio.run(sfx.generate())  # must not raise
+    creak = {p for p, _ in sfx.EFFECTS["creak"]}
+    _mock_eleven(monkeypatch, sfx, lambda req: httpx.Response(500 if json.loads(req.content)["text"] in creak else 200, content=b"ID3"))
+    sfx.generate()  # a failed clip is skipped, not fatal
     assert "creak" not in sfx.available() and "coin" in sfx.available()
     second = []
     _mock_eleven(monkeypatch, sfx, lambda req: second.append(json.loads(req.content)["text"]) or httpx.Response(200, content=b"ID3"))
-    asyncio.run(sfx.generate())
-    assert sorted(second) == sorted(creak_prompts)  # only the missing variants are requested
-    assert len(list(tmp_path.iterdir())) == sum(len(v) for v in sfx.EFFECTS.values())
+    sfx.generate()
+    assert sorted(second) == sorted(creak)
 
 
-def test_sfx_stale_files_are_not_advertised(monkeypatch, tmp_path):
-    sfx = _sfx_env(monkeypatch, tmp_path)
-    (tmp_path / "creak-0-deadbeef00.mp3").write_bytes(b"old")
-    assert sfx.available() == {}
-
-
-def test_sfx_route_serves_clips_and_blocks_traversal(monkeypatch, tmp_path):
-    sfx = _sfx_env(monkeypatch, tmp_path)
-    prompt, dur = sfx.EFFECTS["coin"][0]
-    name = sfx.filename("coin", 0, prompt, dur)
-    (tmp_path / name).write_bytes(b"ID3coin")
-    client = TestClient(app_module.app)
-    assert client.get(f"/api/sfx/{name}").content == b"ID3coin"
-    assert client.get("/api/sfx/..%2F..%2F.env").status_code == 404
-    assert client.get("/api/config").json()["sfx"]["coin"] == [f"/api/sfx/{name}"]
-
-
-def test_sfx_missing_permission_warns_once_and_stops(monkeypatch, tmp_path, caplog):
-    sfx = _sfx_env(monkeypatch, tmp_path)
-    monkeypatch.setattr(sfx.voice, "_eleven_slots", asyncio.Semaphore(2))
-    calls = []
-    detail = {"detail": {"status": "missing_permissions", "message": "missing the permission sound_generation"}}
-    _mock_eleven(monkeypatch, sfx, lambda req: calls.append(1) or httpx.Response(401, json=detail))
-    with caplog.at_level("WARNING", logger="sfx"):
-        asyncio.run(sfx.generate())
-    warnings = [r for r in caplog.records if r.name == "sfx"]
-    assert len(warnings) == 1 and "Sound Effects permission" in warnings[0].getMessage()
-    assert len(calls) <= 2  # the rest are skipped, not sent
-    assert sfx.available() == {}
-
-
-def test_startup_never_generates_sound_effects(monkeypatch, tmp_path):
-    from server import voice
-
+def test_sfx_missing_permission_stops_after_one_request(monkeypatch, tmp_path):
     sfx = _sfx_env(monkeypatch, tmp_path)
     calls = []
-
-    async def no_stock():
-        return {}
-
-    monkeypatch.setattr(voice, "prewarm", no_stock)
-    _mock_eleven(monkeypatch, sfx, lambda req: calls.append(req.url.path) or httpx.Response(200, content=b"ID3"))
-    with TestClient(app_module.app):
-        pass
-    assert calls == []  # clips are committed to the repo; scripts/make_sfx.py makes them
+    _mock_eleven(monkeypatch, sfx, lambda req: calls.append(1) or httpx.Response(401, json={"detail": {"status": "missing_permissions"}}))
+    with pytest.raises(SystemExit, match="Sound Effects permission"):
+        sfx.generate()
+    assert calls == [1]
 
 
-def test_sfx_prune_removes_only_stale_clips(monkeypatch, tmp_path):
+def test_sfx_stale_clips_are_ignored_and_pruned(monkeypatch, tmp_path):
     sfx = _sfx_env(monkeypatch, tmp_path)
     prompt, dur = sfx.EFFECTS["coin"][0]
     current = tmp_path / sfx.filename("coin", 0, prompt, dur)
     current.write_bytes(b"ID3")
     (tmp_path / "coin-0-deadbeef00.mp3").write_bytes(b"old")
+    assert sfx.available() == {"coin": [f"/sfx/{current.name}"]}
     assert sfx.prune() == ["coin-0-deadbeef00.mp3"]
     assert [p.name for p in tmp_path.iterdir()] == [current.name]
 
 
-def test_sfx_clips_live_in_the_repo():
-    from server import config
-
-    assert config.SFX_DIR == config.ROOT / "assets" / "sfx"
+def test_committed_clips_are_advertised_and_served():
+    client = TestClient(app_module.app)
+    clips = client.get("/api/config").json()["sfx"]
+    assert set(clips) == {"creak", "grind", "whir", "coin", "ratchet"}  # run scripts/make_sfx.py if this fails
+    r = client.get(clips["whir"][0])
+    assert r.status_code == 200 and r.content[:3] == b"ID3"
