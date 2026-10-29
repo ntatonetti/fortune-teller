@@ -3,6 +3,7 @@ import base64
 import json
 import types
 
+import pytest
 from fastapi.testclient import TestClient
 
 from server import app as app_module
@@ -266,3 +267,42 @@ def test_card_prints_the_question():
     assert "You asked:" in lines
     assert all(len(line) <= 32 for line in lines)
     assert any("…" in line for line in lines)  # long questions are shortened
+
+
+@pytest.mark.parametrize(
+    "raw, clean",
+    [
+        ("*creak* Ah... a visitor.", "Ah... a visitor."),
+        ("Creak... whirrr... Ah, a pirate! Come closer...", "Ah, a pirate! Come closer..."),
+        ("Creak, creak! The gears wake.", "The gears wake."),
+        ("Whirrr... the gears remember you.", "The gears remember you."),
+        ("Hmm [gears grinding] your future glows.", "Hmm your future glows."),
+        ("Your fate is sealed... clank! Beware the raven.", "Your fate is sealed... Beware the raven."),
+        ("(a long hiss) Lucky seven.", "Lucky seven."),
+        ("The gears whir in the dark... your ticket awaits.", "The gears whir in the dark... your ticket awaits."),
+        ("*whirrr*", "*whirrr*"),
+    ],
+)
+def test_scrub_spoken(raw, clean):
+    assert oracle.scrub_spoken(raw) == clean
+
+
+def test_claude_lines_are_scrubbed(monkeypatch):
+    async def fake_ask(schema, *a, **k):
+        if schema is oracle.GREET_SCHEMA:
+            return {"audience": "adult", "group_size": 1, "costume": "a pirate", "greeting": "*creak* Ahoy... come closer."}
+        return {
+            "audience": "adult", "group_size": 1, "costume": "a pirate", "spoken": "Clank! Seven ravens.",
+            "card_title": "The Raven", "card_text": "*whirr* Seven ravens.", "lucky_number": 7,
+            "task": "Toast a ghost.", "gist": "ravens",
+        }
+
+    monkeypatch.setattr(oracle, "_ask", fake_ask)
+    g = asyncio.run(oracle.greet("x" * 200))
+    assert g.greeting == "Ahoy... come closer."
+    f = asyncio.run(oracle.fortune("x" * 200, "adult", "a pirate", []))
+    assert f.spoken == "Seven ravens." and f.card_text == "Seven ravens."
+
+
+def test_persona_forbids_sound_effects():
+    assert "Never write sound effects" in oracle.PERSONA

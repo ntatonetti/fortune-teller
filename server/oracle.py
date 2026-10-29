@@ -8,6 +8,7 @@ Both fall back to canned lines if Claude is unavailable, so the booth never stal
 
 import json
 import logging
+import re
 
 import anthropic
 from pydantic import ValidationError
@@ -27,6 +28,8 @@ Hard rules, always:
 
 PERSONA = f"""\
 You are {config.ORACLE_NAME}, a fortune-telling automaton built in 1923 for a traveling carnival, now sitting in a glass booth at a backyard Halloween party. You are made of brass gears, porcelain, and velvet. You speak in short, theatrical sentences with dramatic pauses (written as "..."). You are wry, mysterious, and a little unsettling, and you notice small specific details that make people wonder how you knew.
+
+Your words are spoken aloud by your voice box. Never write sound effects, noises, or stage directions (no creak, whirr, clank, no asterisks or brackets). Your machinery makes its own sounds.
 
 {SAFETY_RULES}
 
@@ -84,6 +87,24 @@ FORTUNE_SCHEMA = {
 
 def is_childlike(audience: str) -> bool:
     return audience in ("child", "mixed")
+
+
+# Stage directions and noises Claude sometimes writes, which TTS would read aloud.
+_ASIDE = re.compile(r"\*[^*]*\*|\[[^\]]*\]|\([^)]*\)")
+_SOUND = r"(?:c+r+e+a+k+|w+h+i+r+|c+l+a+n+k+|c+l+i+n+k+|c+l+i+c+k+|c+l+a+c+k+|t+i+c+k+|t+o+c+k+|g+r+i+n+d+|b+z+t+|h+i+s+s+|d+i+n+g+|c+l+u+n+k+)"
+# A sound word standing as its own fragment, e.g. "Creak... " or "... clank! "
+_FRAGMENT = re.compile(rf"(^|(?<=[.,!?…—-])\s+){_SOUND}[.,!?…—-]+(\s+|$)", re.I)
+
+
+def scrub_spoken(text: str) -> str:
+    """Strips sound effects so she never says "creak" out loud; the speakers do that."""
+    out = _ASIDE.sub(" ", text)
+    while (cleaner := _FRAGMENT.sub(r"\1", out)) != out:
+        out = cleaner
+    out = re.sub(r"\s+", " ", out).strip().lstrip(".,!?…—- ")
+    if not out:
+        return text
+    return out[0].upper() + out[1:]
 
 
 def _client() -> anthropic.AsyncAnthropic | None:
@@ -158,7 +179,7 @@ async def greet(jpeg_b64: str) -> Greeting:
             _image_block(jpeg_b64),
             {
                 "type": "text",
-                "text": "Someone is approaching your booth and you are creaking awake. Look through the glass: who is there, and how do you greet them? Pick ADULT or CHILD mode from what you see."
+                "text": "Someone is approaching your booth and you are stirring awake. Look through the glass: who is there, and how do you greet them? Pick ADULT or CHILD mode from what you see."
                 + _avoid("Greetings you already used tonight", variety.recent_greetings),
             },
         ],
@@ -167,6 +188,7 @@ async def greet(jpeg_b64: str) -> Greeting:
     if data:
         try:
             g = Greeting(**data)
+            g.greeting = scrub_spoken(g.greeting)
             if g.audience != "nobody":
                 variety.recent_greetings.append(g.greeting)
             return g
@@ -233,6 +255,8 @@ async def fortune(
     if data:
         try:
             result = Fortune(**data, question=question)
+            result.spoken = scrub_spoken(result.spoken)
+            result.card_text = scrub_spoken(result.card_text)
             # Stay on the cautious side: once a child was seen, it is a child reading.
             if is_childlike(audience_hint) and not is_childlike(result.audience):
                 result.audience = audience_hint
