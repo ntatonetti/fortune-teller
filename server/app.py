@@ -20,8 +20,7 @@ stock_audio: dict[str, list[str | None]] = {}
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    stock, _ = await asyncio.gather(voice.prewarm(), sfx.prewarm())
-    stock_audio.update(stock)
+    stock_audio.update(await voice.prewarm())
     log.info(
         "Oracle ready: model=%s claude=%s voice=%s sfx=%d clips printer=%s guests_remembered=%d",
         config.CLAUDE_MODEL,

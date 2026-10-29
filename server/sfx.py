@@ -1,8 +1,9 @@
 """Machine sound effects: real clips from ElevenLabs instead of the browser synth.
 
-Each variant is generated once into data/sfx/, named by a hash of its prompt, so
-editing a prompt (or deleting a file) regenerates just that clip. Without a key,
-or if generation fails, the browser keeps its synthesized sounds.
+The clips are generated once by scripts/make_sfx.py and committed to assets/sfx/,
+so the booth never calls ElevenLabs for them at party time. Each file is named by
+a hash of its prompt, so editing a prompt (or deleting a file) and rerunning the
+script regenerates just that clip. Any effect without a clip uses the synth.
 """
 
 import asyncio
@@ -111,7 +112,7 @@ async def _render(name: str, i: int, prompt: str, duration: float) -> None:
         tmp.unlink(missing_ok=True)
 
 
-async def prewarm() -> None:
+async def generate() -> None:
     """Generates any missing clips. Existing files are never re-requested."""
     global _denied
     if not config.ELEVENLABS_API_KEY:
@@ -126,6 +127,20 @@ async def prewarm() -> None:
             if not (config.SFX_DIR / filename(name, i, prompt, duration)).exists()
         )
     )
+
+
+def _current() -> set[str]:
+    return {filename(name, i, p, d) for name, variants in EFFECTS.items() for i, (p, d) in enumerate(variants)}
+
+
+def prune() -> list[str]:
+    """Deletes clips left over from old prompts; returns their names."""
+    if not config.SFX_DIR.exists():
+        return []
+    stale = sorted(p.name for p in config.SFX_DIR.glob("*.mp3") if p.name not in _current())
+    for name in stale:
+        (config.SFX_DIR / name).unlink()
+    return stale
 
 
 def available() -> dict[str, list[str]]:

@@ -65,3 +65,7 @@ In `static/js/sound.js`:
 ### 5. Docs
 
 README "Keys and voices" section: one paragraph saying the same ElevenLabs key also generates the machine sound effects once at startup into `data/sfx/`, and how to regenerate one (delete the file). `data/sfx/` is already covered by the `data/` rule in `.gitignore`.
+
+## Revision (2026-10-28): clips are committed, not generated at startup
+
+The clips are generated once by `scripts/make_sfx.py` into `assets/sfx/` (`config.SFX_DIR`) and committed to the repo. The server no longer calls ElevenLabs for sound effects at startup; it only serves what's in `assets/sfx/`. The script requests only missing clips, removes clips left over from old prompts (`sfx.prune()`), and exits non-zero if any clip is still missing. This replaces the startup `prewarm()` and the `data/sfx/` cache described above.

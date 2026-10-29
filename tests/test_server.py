@@ -330,13 +330,13 @@ def _mock_eleven(monkeypatch, sfx, handler):
     monkeypatch.setattr(sfx.httpx, "AsyncClient", mock)
 
 
-def test_sfx_prewarm_without_key_does_nothing(monkeypatch, tmp_path):
+def test_sfx_generate_without_key_does_nothing(monkeypatch, tmp_path):
     sfx = _sfx_env(monkeypatch, tmp_path, key="")
-    asyncio.run(sfx.prewarm())
+    asyncio.run(sfx.generate())
     assert sfx.available() == {} and list(tmp_path.iterdir()) == []
 
 
-def test_sfx_prewarm_generates_every_variant_with_loop_only_for_whir(monkeypatch, tmp_path):
+def test_sfx_generate_makes_every_variant_with_loop_only_for_whir(monkeypatch, tmp_path):
     sfx = _sfx_env(monkeypatch, tmp_path)
     seen = []
     def handler(req):
@@ -345,7 +345,7 @@ def test_sfx_prewarm_generates_every_variant_with_loop_only_for_whir(monkeypatch
         assert req.url.path == "/v1/sound-generation" and req.headers["xi-api-key"] == "k"
         return httpx.Response(200, content=b"ID3sfx")
     _mock_eleven(monkeypatch, sfx, handler)
-    asyncio.run(sfx.prewarm())
+    asyncio.run(sfx.generate())
     total = sum(len(v) for v in sfx.EFFECTS.values())
     assert len(seen) == total
     assert all(b["loop"] == (b["text"] in [p for p, _ in sfx.EFFECTS["whir"]]) for b in seen)
@@ -360,11 +360,11 @@ def test_sfx_partial_failure_is_skipped_then_retried_only_for_missing(monkeypatc
         failing = json.loads(req.content)["text"] in creak_prompts
         return httpx.Response(500) if failing else httpx.Response(200, content=b"ID3")
     _mock_eleven(monkeypatch, sfx, flaky)
-    asyncio.run(sfx.prewarm())  # must not raise
+    asyncio.run(sfx.generate())  # must not raise
     assert "creak" not in sfx.available() and "coin" in sfx.available()
     second = []
     _mock_eleven(monkeypatch, sfx, lambda req: second.append(json.loads(req.content)["text"]) or httpx.Response(200, content=b"ID3"))
-    asyncio.run(sfx.prewarm())
+    asyncio.run(sfx.generate())
     assert sorted(second) == sorted(creak_prompts)  # only the missing variants are requested
     assert len(list(tmp_path.iterdir())) == sum(len(v) for v in sfx.EFFECTS.values())
 
@@ -393,8 +393,40 @@ def test_sfx_missing_permission_warns_once_and_stops(monkeypatch, tmp_path, capl
     detail = {"detail": {"status": "missing_permissions", "message": "missing the permission sound_generation"}}
     _mock_eleven(monkeypatch, sfx, lambda req: calls.append(1) or httpx.Response(401, json=detail))
     with caplog.at_level("WARNING", logger="sfx"):
-        asyncio.run(sfx.prewarm())
+        asyncio.run(sfx.generate())
     warnings = [r for r in caplog.records if r.name == "sfx"]
     assert len(warnings) == 1 and "Sound Effects permission" in warnings[0].getMessage()
     assert len(calls) <= 2  # the rest are skipped, not sent
     assert sfx.available() == {}
+
+
+def test_startup_never_generates_sound_effects(monkeypatch, tmp_path):
+    from server import voice
+
+    sfx = _sfx_env(monkeypatch, tmp_path)
+    calls = []
+
+    async def no_stock():
+        return {}
+
+    monkeypatch.setattr(voice, "prewarm", no_stock)
+    _mock_eleven(monkeypatch, sfx, lambda req: calls.append(req.url.path) or httpx.Response(200, content=b"ID3"))
+    with TestClient(app_module.app):
+        pass
+    assert calls == []  # clips are committed to the repo; scripts/make_sfx.py makes them
+
+
+def test_sfx_prune_removes_only_stale_clips(monkeypatch, tmp_path):
+    sfx = _sfx_env(monkeypatch, tmp_path)
+    prompt, dur = sfx.EFFECTS["coin"][0]
+    current = tmp_path / sfx.filename("coin", 0, prompt, dur)
+    current.write_bytes(b"ID3")
+    (tmp_path / "coin-0-deadbeef00.mp3").write_bytes(b"old")
+    assert sfx.prune() == ["coin-0-deadbeef00.mp3"]
+    assert [p.name for p in tmp_path.iterdir()] == [current.name]
+
+
+def test_sfx_clips_live_in_the_repo():
+    from server import config
+
+    assert config.SFX_DIR == config.ROOT / "assets" / "sfx"
