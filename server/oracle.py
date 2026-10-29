@@ -92,14 +92,17 @@ def is_childlike(audience: str) -> bool:
 # Stage directions and noises Claude sometimes writes, which TTS would read aloud.
 _ASIDE = re.compile(r"\*[^*]*\*|\[[^\]]*\]|\([^)]*\)")
 _SOUND = r"(?:c+r+e+a+k+|w+h+i+r+|c+l+a+n+k+|c+l+i+n+k+|c+l+i+c+k+|c+l+a+c+k+|t+i+c+k+|t+o+c+k+|g+r+i+n+d+|b+z+t+|h+i+s+s+|d+i+n+g+|c+l+u+n+k+)"
-# A sound word standing as its own fragment, e.g. "Creak... " or "... clank! "
-_FRAGMENT = re.compile(rf"(^|(?<=[.,!?…—-])\s+){_SOUND}[.,!?…—-]+(\s+|$)", re.I)
+# A run of sound words that is a whole fragment of its own: it opens the text, or sits
+# between two sentences, e.g. "Creak... whirrr... Ah" or "sealed... clank! Beware".
+# Words inside a sentence ("Ding, dong, the witch", "goes tick... tock... and") stay.
+_RUN = rf"(?i:{_SOUND}(?:[.,!?…—-]+\s*{_SOUND})*)[.!?…]+"
+_FRAGMENT = re.compile(rf"^{_RUN}(?:\s+|$)|(?<=[.!?…])\s+{_RUN}(?=\s+[A-Z]|\s*$)")
 
 
 def scrub_spoken(text: str) -> str:
     """Strips sound effects so she never says "creak" out loud; the speakers do that."""
     out = _ASIDE.sub(" ", text)
-    while (cleaner := _FRAGMENT.sub(r"\1", out)) != out:
+    while (cleaner := _FRAGMENT.sub("", out)) != out:
         out = cleaner
     out = re.sub(r"\s+", " ", out).strip().lstrip(".,!?…—- ")
     if not out:

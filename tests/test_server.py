@@ -282,6 +282,11 @@ def test_card_prints_the_question():
         ("(a long hiss) Lucky seven.", "Lucky seven."),
         ("The gears whir in the dark... your ticket awaits.", "The gears whir in the dark... your ticket awaits."),
         ("*whirrr*", "*whirrr*"),
+        # sound words inside real sentences are prose, not effects
+        ("Ding, dong, the witch is dead.", "Ding, dong, the witch is dead."),
+        ("Work hard, grind, and the gold comes.", "Work hard, grind, and the gold comes."),
+        ("A clock goes tick... tock... and you wait.", "A clock goes tick... tock... and you wait."),
+        ("Yes, click, the lock gives way.", "Yes, click, the lock gives way."),
     ],
 )
 def test_scrub_spoken(raw, clean):
@@ -379,3 +384,17 @@ def test_sfx_route_serves_clips_and_blocks_traversal(monkeypatch, tmp_path):
     assert client.get(f"/api/sfx/{name}").content == b"ID3coin"
     assert client.get("/api/sfx/..%2F..%2F.env").status_code == 404
     assert client.get("/api/config").json()["sfx"]["coin"] == [f"/api/sfx/{name}"]
+
+
+def test_sfx_missing_permission_warns_once_and_stops(monkeypatch, tmp_path, caplog):
+    sfx = _sfx_env(monkeypatch, tmp_path)
+    monkeypatch.setattr(sfx.voice, "_eleven_slots", asyncio.Semaphore(2))
+    calls = []
+    detail = {"detail": {"status": "missing_permissions", "message": "missing the permission sound_generation"}}
+    _mock_eleven(monkeypatch, sfx, lambda req: calls.append(1) or httpx.Response(401, json=detail))
+    with caplog.at_level("WARNING", logger="sfx"):
+        asyncio.run(sfx.prewarm())
+    warnings = [r for r in caplog.records if r.name == "sfx"]
+    assert len(warnings) == 1 and "Sound Effects permission" in warnings[0].getMessage()
+    assert len(calls) <= 2  # the rest are skipped, not sent
+    assert sfx.available() == {}

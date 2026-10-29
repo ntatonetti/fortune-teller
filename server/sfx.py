@@ -44,6 +44,8 @@ EFFECTS: dict[str, list[tuple[str, float]]] = {
 }
 LOOPED = frozenset({"whir"})  # plays for as long as she consults, so it must loop seamlessly
 
+_denied = False  # the key lacks the Sound Effects permission: skip the remaining requests
+
 
 def filename(name: str, i: int, prompt: str, duration: float) -> str:
     digest = hashlib.sha256(f"{prompt}|{duration}|{name in LOOPED}".encode()).hexdigest()[:10]
@@ -57,9 +59,11 @@ def clip_path(name: str) -> Path | None:
     return path
 
 
-async def _generate(prompt: str, duration: float, loop: bool) -> bytes:
+async def _generate(prompt: str, duration: float, loop: bool) -> bytes | None:
     # Shares the TTS request slots, so the plan's concurrency cap covers both.
     async with voice._eleven_slots, httpx.AsyncClient(timeout=30) as client:
+        if _denied:
+            return None
         for delay in (*voice.RETRY_DELAYS_S, None):
             r = await client.post(
                 SFX_URL,
@@ -83,10 +87,25 @@ async def _generate(prompt: str, duration: float, loop: bool) -> bytes:
 async def _render(name: str, i: int, prompt: str, duration: float) -> None:
     path = config.SFX_DIR / filename(name, i, prompt, duration)
     tmp = path.with_suffix(".part")
+    global _denied
     try:
-        tmp.write_bytes(await _generate(prompt, duration, name in LOOPED))
+        data = await _generate(prompt, duration, name in LOOPED)
+        if data is None:
+            return
+        tmp.write_bytes(data)
         tmp.replace(path)  # never leave a half-written clip that looks finished
         log.info("generated sound effect %s", path.name)
+    except httpx.HTTPStatusError as e:
+        if e.response.status_code not in (401, 403):
+            log.warning("sound effect %s #%d failed (%s); the synth sound stands in", name, i, e)
+        elif not _denied:
+            _denied = True
+            log.warning(
+                "ElevenLabs refused sound effects (%d: %s). The API key needs the Sound Effects permission"
+                " (Developers -> API Keys -> edit the key); using the synth sounds for now.",
+                e.response.status_code,
+                e.response.text[:200],
+            )
     except (httpx.HTTPError, OSError) as e:
         log.warning("sound effect %s #%d failed (%s); the synth sound stands in", name, i, e)
         tmp.unlink(missing_ok=True)
@@ -94,8 +113,10 @@ async def _render(name: str, i: int, prompt: str, duration: float) -> None:
 
 async def prewarm() -> None:
     """Generates any missing clips. Existing files are never re-requested."""
+    global _denied
     if not config.ELEVENLABS_API_KEY:
         return
+    _denied = False
     config.SFX_DIR.mkdir(parents=True, exist_ok=True)
     await asyncio.gather(
         *(
