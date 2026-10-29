@@ -37,6 +37,9 @@ PRINTER = os.getenv("PRINTER", "console")
 PRINTER_USB_VENDOR = int(os.getenv("PRINTER_USB_VENDOR", "0") or "0", 16)
 PRINTER_USB_PRODUCT = int(os.getenv("PRINTER_USB_PRODUCT", "0") or "0", 16)
 PRINTER_WIDTH_CHARS = int(os.getenv("PRINTER_WIDTH_CHARS", "32"))  # 32 for 58mm, 48 for 80mm
+# Bulk endpoints; the 0x0416:0x5011 "POS80" boards (NetumScan NS8360 etc.) use 0x01 out, 0x81 in
+PRINTER_USB_OUT_EP = int(os.getenv("PRINTER_USB_OUT_EP", "0x01"), 16)
+PRINTER_USB_IN_EP = int(os.getenv("PRINTER_USB_IN_EP", "0x81"), 16)
 
 # Party memory: text descriptions of costumes only, never images
 MEMORY_FILE = Path(os.getenv("MEMORY_FILE", str(ROOT / "data" / "guests.json")))

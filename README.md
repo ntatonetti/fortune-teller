@@ -70,9 +70,9 @@ The voice is pushed through a phonograph filter in the browser (band-limited, sl
 - **Printer** (USB ESC/POS thermal):
   ```bash
   brew install libusb
-  system_profiler SPUSBDataType     # note the printer's Vendor ID and Product ID
+  system_profiler SPUSBHostDataType   # note the printer's Vendor ID and Product ID (SPUSBDataType on older macOS)
   ```
-  Then in `.env` set `PRINTER=usb`, `PRINTER_USB_VENDOR=0x....`, `PRINTER_USB_PRODUCT=0x....`, and `PRINTER_WIDTH_CHARS` (32 for 58 mm paper, 48 for 80 mm). If the printer jams or is unplugged, the show carries on without the card.
+  Then in `.env` set `PRINTER=usb`, `PRINTER_USB_VENDOR=0x....`, `PRINTER_USB_PRODUCT=0x....`, and `PRINTER_WIDTH_CHARS` (32 for 58 mm paper, 48 for 80 mm). The NetumScan NS8360 shows up as "POS80 Printer USB" with `0x0416` / `0x5011` and takes 48. If the printer doesn't appear, check it's switched on. Curly quotes, dashes and "…" print as plain ASCII, since thermal codepages don't have them. If the printer jams or is unplugged, the show carries on without the card.
 
 ## Head mode: projecting onto a foam head
 
