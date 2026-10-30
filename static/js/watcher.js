@@ -78,6 +78,38 @@ export class Watcher {
     this.nearest = this.faces.reduce((best, f) => (!best || f.w > best.w ? f : best), null);
   }
 
+  // The colours of a face's head and costume, from just above the hat to the chest:
+  // a 4x4x4 RGB histogram summing to 1. Tells one guest from the next at the same spot.
+  colours(f) {
+    const v = this.video;
+    if (!f || !v.videoWidth) return null;
+    const vw = v.videoWidth;
+    const vh = v.videoHeight;
+    const h = f.h || (f.w * vw) / vh;
+    const sx = Math.max(0, (f.x - f.w * 0.75) * vw);
+    const sy = Math.max(0, (f.y - h) * vh);
+    const sw = Math.min(vw - sx, f.w * 1.5 * vw);
+    const sh = Math.min(vh - sy, h * 3 * vh);
+    if (sw < 4 || sh < 4) return null;
+    const c = (this._col ||= document.createElement("canvas"));
+    c.width = 16;
+    c.height = 32;
+    const g = c.getContext("2d", { willReadFrequently: true });
+    g.drawImage(v, sx, sy, sw, sh, 0, 0, 16, 32);
+    const px = g.getImageData(0, 0, 16, 32).data;
+    const hist = new Float32Array(64);
+    for (let i = 0; i < px.length; i += 4) hist[((px[i] >> 6) << 4) | ((px[i + 1] >> 6) << 2) | (px[i + 2] >> 6)] += 1 / 512;
+    return hist;
+  }
+
+  // How alike two colours() are: 1 the same, 0 nothing in common.
+  static alike(a, b) {
+    if (!a || !b) return 0;
+    let s = 0;
+    for (let i = 0; i < 64; i++) s += Math.min(a[i], b[i]);
+    return s;
+  }
+
   // The nearest guest has turned their head away from her.
   get lookingAway() {
     return this.nearest?.turn > 0.3;

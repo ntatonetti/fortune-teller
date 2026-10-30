@@ -45,8 +45,10 @@ const ms = (name) => T[name] * 1000;
 let state = "boot";
 let reading = null; // {audience, kid, costume, fortune}
 let tokenWaiter = null;
-let needsAbsence = false;
 let farewellAt = 0;
+// The guest whose reading just ended, followed by place and costume colours so
+// they don't wake her again but anyone else does: {x, y, w, colours, at, alike}.
+let lastGuest = null;
 let lastFaceAt = 0;
 // Walk-away detection: only once the camera has seen this guest, so a dark
 // booth where faces aren't detected never cuts a real reading short.
@@ -282,6 +284,7 @@ async function session(opts = {}) {
   walkedAway = false;
   seenThisSession = false;
   lastFaceAt = performance.now();
+  lastGuest = null;
   try {
     await runReading(opts);
   } catch (e) {
@@ -472,7 +475,6 @@ async function sleepAgain() {
   sound.ball(0); // asleep: the music box plays alone
   await wait(ms("fall_asleep"));
   state = "sleep";
-  needsAbsence = true;
   farewellAt = performance.now();
   nextSleepTalk = farewellAt + (T.sleep_talk > 0 ? sleepTalkGap(4) : 0);
   nearSince = 0;
@@ -492,13 +494,45 @@ function lookAt(face, now) {
   puppet.set({ eyeX: ex, eyeY: ey, turn: ex * 0.6 });
 }
 
+// During a reading the nearest face is the guest: learn their place and colours.
+function noteGuest(f, now) {
+  const colours = watcher.colours(f);
+  if (!colours) return;
+  const was = lastGuest?.colours;
+  if (was) for (let i = 0; i < 64; i++) was[i] += (colours[i] - was[i]) * 0.02; // averaged over about a second
+  lastGuest = { x: f.x, y: f.y, w: f.w, colours: was || colours, at: now, alike: 1 };
+}
+
+// After the reading: the face that is still the last guest (about where they
+// were, about their size, their costume's colours), or null. Once they've been
+// out of sight for REWAKE_GONE they're forgotten.
+function followLastGuest(now) {
+  const g = lastGuest;
+  if (!g) return null;
+  if (now - g.at > ms("rewake_gone")) return (lastGuest = null);
+  let best = null;
+  for (const f of watcher.faces) {
+    const size = f.w / g.w;
+    if (size < 0.6 || size > 1.7 || Math.hypot(f.x - g.x, f.y - g.y) > Math.max(f.w, g.w) * 1.5) continue;
+    const alike = Watcher.alike(watcher.colours(f), g.colours);
+    if (!best || alike > best.alike) best = { f, alike };
+  }
+  if (best) g.alike = best.alike;
+  if (!best || best.alike < T.same_guest) return null;
+  Object.assign(g, { x: best.f.x, y: best.f.y, w: best.f.w, at: now });
+  return best.f;
+}
+
 function sleepLogic(now) {
   const face = watcher.nearest;
   if (face) lastFaceAt = now;
-  if (needsAbsence && ((!face && now - lastFaceAt > ms("rewake_gone")) || now - farewellAt > ms("rewake_anyway"))) needsAbsence = false;
+  if (lastGuest && now - farewellAt > ms("rewake_anyway")) lastGuest = null; // lingered: greet them again
 
+  // Anyone at the booth but the guest who just left wakes her, even while they're still there.
+  const theirs = followLastGuest(now);
+  const newcomer = watcher.faces.some((f) => f !== theirs && f.w >= settings.near);
   const near = face && face.w >= settings.near;
-  if (near && !needsAbsence) {
+  if (newcomer) {
     nearSince ||= now;
     if (now - nearSince > ms("wake_hold")) {
       nearSince = 0;
@@ -511,7 +545,7 @@ function sleepLogic(now) {
   if (face && !near) {
     farSince ||= now;
     if (now - farSince > ms("peek_after")) lookAt(face, now);
-    if (now - farSince > ms("beckon_after") && now - lastBeckon > ms("beckon_every") && !needsAbsence) {
+    if (now - farSince > ms("beckon_after") && now - lastBeckon > ms("beckon_every") && !lastGuest) {
       lastBeckon = now;
       sound.musicBox(false);
       sayStock("beckon").then(() => state === "sleep" && settings.music && sound.musicBox(true));
@@ -592,6 +626,7 @@ function drawDebug() {
     `question: ${reading?.question || "-"}`,
     `walk-away: ${inReading() ? `${((performance.now() - lastFaceAt) / 1000).toFixed(1)}s` : "-"} / ${settings.walkAwayS}s${inReading() && !seenThisSession ? " (face not seen yet: off)" : ""}`,
     `costume: ${reading?.costume || "-"}`,
+    `last guest: ${lastGuest ? `alike ${lastGuest.alike.toFixed(2)} (same ≥ ${T.same_guest}) · seen ${((performance.now() - lastGuest.at) / 1000).toFixed(1)}s ago` : "-"}`,
     `printer: ${server.printer}${maxWords ? ` · brief: ${maxWords} words` : ""}`,
     `button: ${settings.button ? "required" : "auto"} · glitch: ${Math.round(settings.glitchRate * 100)}% · guests: ${server.guests ?? "?"}`,
   ].join("\n");
@@ -603,10 +638,12 @@ function frame(now) {
   watcher.update(now);
   pollGamepads();
   if (state === "sleep") sleepLogic(now);
+  else if (state === "farewell") followLastGuest(now);
   else if (inReading()) {
     if (watcher.nearest) {
       lastFaceAt = now;
       seenThisSession = true;
+      noteGuest(watcher.nearest, now);
       if (state !== "consult" && now > dazedUntil) lookAt(watcher.nearest, now);
     }
     const away = now - lastFaceAt;
