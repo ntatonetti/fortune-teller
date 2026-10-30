@@ -8,7 +8,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import config, oracle, printer, sfx, variety, voice
+from . import config, history, oracle, printer, sfx, variety, voice
 from .memory import GuestLog
 from .models import Fortune
 from .setting_help import HELP
@@ -226,6 +226,24 @@ async def clear_guests():
     variety.recent_greetings.clear()
     log.info("memory cleared: she has forgotten every guest")
     return {"cleared": True}
+
+
+@app.get("/api/history")
+async def history_days():
+    return history.days()
+
+
+@app.get("/api/history/{day}")
+async def history_day(day: str):
+    """One day's Claude calls, oldest first; /api/history/<day>.jsonl for the raw file."""
+    if day.endswith(".jsonl"):
+        path = history.path(day.removesuffix(".jsonl"))
+        if path is None:
+            raise HTTPException(404)
+        return FileResponse(path, media_type="application/x-ndjson", filename=path.name)
+    if history.path(day) is None:
+        raise HTTPException(404)
+    return history.read(day)
 
 
 app.mount("/", StaticFiles(directory=config.ROOT / "static", html=True), name="static")

@@ -106,6 +106,8 @@ PRINTER_USB_IN_EP = int(os.getenv("PRINTER_USB_IN_EP", "0x81"), 16)
 
 # Party memory: text descriptions of costumes only, never images
 MEMORY_FILE = Path(os.getenv("MEMORY_FILE", str(ROOT / "data" / "guests.json")))
+# Every Claude call, prompts and answers, a file per day; see server/history.py
+HISTORY_DIR = Path(os.getenv("HISTORY_DIR", str(ROOT / "data" / "history")))
 _section = "Her memory"
 MEMORY_RECALL = _setting("MEMORY_RECALL", 15, "how many earlier guests she recalls in a reading", int, span=[0, 50, 1])
 MEMORY_MAX_AGE_H = _setting("MEMORY_MAX_AGE_H", 12, "guests older than this many hours are forgotten", span=[1, 48, 1])

@@ -161,6 +161,33 @@ def test_ask_request_shape_and_parse(monkeypatch):
     assert client.timeouts == [oracle.config.GREET_TIMEOUT_S]
 
 
+def test_every_call_goes_into_the_history(monkeypatch, tmp_path):
+    monkeypatch.setattr(oracle.config, "HISTORY_DIR", tmp_path / "history")
+    payload = {"audience": "adult", "group_size": 1, "costume": "a ghost", "greeting": "Boo..."}
+    resp = types.SimpleNamespace(
+        stop_reason="end_turn", stop_details=None, model="claude-opus-5-5",
+        usage=types.SimpleNamespace(input_tokens=900, output_tokens=40),
+        content=[types.SimpleNamespace(type="text", text=json.dumps(payload))],
+    )
+    client, _ = _fake_client(resp)
+    monkeypatch.setattr(oracle, "_CLIENT", client)
+    asyncio.run(oracle.greet("x" * 200))
+    client.beta.messages.response = types.SimpleNamespace(
+        stop_reason="refusal", stop_details=types.SimpleNamespace(category="cyber"), content=[])
+    asyncio.run(oracle.asked("will I", kid=False))
+    with TestClient(app_module.app) as c:
+        [day] = c.get("/api/history").json()
+        assert day["calls"] == 2
+        greet, asked = c.get(f"/api/history/{day['day']}").json()
+        assert c.get(f"/api/history/{day['day']}.jsonl").text.count("\n") == 2
+        assert c.get("/api/history/..%2F..%2F.env").status_code == 404
+    assert greet["kind"] == "greet" and greet["output"] == payload and greet["tokens_in"] == 900
+    assert greet["system"] == oracle.persona() and greet["prompt"].startswith("[camera frame]")
+    assert "x" * 200 not in json.dumps(greet)  # never the frame itself
+    assert asked["kind"] == "asked" and asked["output"] is None and asked["error"] == "refused (cyber)"
+    assert "<heard>will I</heard>" in asked["prompt"]
+
+
 def test_no_fallback_param_for_haiku(monkeypatch):
     resp = types.SimpleNamespace(stop_reason="end_turn", stop_details=None, content=[])
     client, msgs = _fake_client(resp)

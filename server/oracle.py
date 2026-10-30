@@ -9,11 +9,12 @@ Each returns None if Claude is unavailable; the booth assumes it is always onlin
 
 import json
 import logging
+import time
 
 import anthropic
 from pydantic import ValidationError
 
-from . import config, phrases, variety
+from . import config, history, phrases, variety
 from .models import Fortune, Greeting
 
 log = logging.getLogger("oracle")
@@ -131,11 +132,22 @@ async def _ask(
     model: str | None = None,
     system: str | None = None,
 ) -> dict | None:
-    """One structured-output call. Returns the parsed JSON or None on any failure."""
+    """One structured-output call. Returns the parsed JSON or None on any failure.
+    Every call, failed or not, goes into the history."""
     if _CLIENT is None:
         return None
     model = model or config.CLAUDE_MODEL
     system = system or persona()
+    started = time.time()
+    response, output, error = await _call(schema, effort, max_tokens, content, timeout, model, system)
+    kind = {id(GREET_SCHEMA): "greet", id(FORTUNE_SCHEMA): "fortune", id(ASKED_SCHEMA): "asked"}.get(id(schema), "other")
+    history.record(kind, model=model, effort=effort, system=system, content=content, started=started,
+                   response=response, output=output, error=error)
+    return output
+
+
+async def _call(schema, effort, max_tokens, content, timeout, model, system):
+    """(response, parsed JSON or None, what went wrong or "")."""
     kwargs = {}
     if model.startswith(_FALLBACK_MODELS):
         kwargs = {"betas": ["server-side-fallback-2026-07-01"], "fallbacks": "default"}
@@ -150,25 +162,26 @@ async def _ask(
         )
     except anthropic.APIConnectionError as e:
         log.warning("Claude unreachable (%s)", e)
-        return None
+        return None, None, f"unreachable: {e}"
     except anthropic.RateLimitError:
         log.warning("Claude rate limited")
-        return None
+        return None, None, "rate limited"
     except anthropic.APIStatusError as e:
         log.error("Claude API error %s: %s", e.status_code, e.message)
-        return None
+        return None, None, f"API error {e.status_code}: {e.message}"
     if response.stop_reason == "refusal":
-        log.warning("Claude declined (%s)", getattr(response.stop_details, "category", None))
-        return None
+        category = getattr(response.stop_details, "category", None)
+        log.warning("Claude declined (%s)", category)
+        return response, None, f"refused ({category})"
     text = next((b.text for b in response.content if b.type == "text"), None)
     if not text:
         log.warning("Claude returned no text (stop_reason=%s)", response.stop_reason)
-        return None
+        return response, None, "no text"
     try:
-        return json.loads(text)
+        return response, json.loads(text), ""
     except json.JSONDecodeError:
         log.warning("Claude returned invalid JSON: %r", text[:200])
-        return None
+        return response, None, f"invalid JSON: {text[:2000]}"
 
 
 def _brief(field: str, max_words: int) -> str:
