@@ -2,7 +2,7 @@
 
 An AI fortune-teller booth for a Halloween party. A projected 1920s carnival automaton sleeps behind the glass until someone walks up. Then she creaks awake, notices their costume, takes payment (a pirate's gold coin, or a whispered secret), listens to the question they bring to the fates, and answers it with a fortune about *them*. At the end a receipt printer spits out a fortune ticket.
 
-The body is deliberately mechanical: the head, eyes, and lids move on a choppy 12 fps "servo" tick, and the jaw is a ventriloquist-dummy hinge driven by the loudness of her voice. The words are not mechanical at all, because Claude is looking at the guest through the camera. That mismatch is the uncanny part.
+She is a photograph of a grandmother at her table: crystal ball, cards, candles, marionette seams down her chin. The face is deliberately mechanical: her eyes and mouth change between still frames on a choppy 12 fps "servo" tick, the mouth opening wider the louder her voice, and her head drops asleep or snaps upright with nothing in between. The words are not mechanical at all, because Claude is looking at the guest through the camera. That mismatch is the uncanny part.
 
 - **Adults** get spooky, wry, PG-13 readings, sometimes with a mid-sentence mechanical seizure. She remembers earlier guests by costume and weaves them in ("Beware the pirate...").
 - **Kids**: if Claude sees a child (or isn't sure), she becomes a twinkly grandmother: whimsical, warm, nothing scary. Once a child is seen at the greeting, the whole reading stays in kid mode.
@@ -141,6 +141,7 @@ Layout:
 - `server/voice.py`: ElevenLabs, plus the cache
 - `server/printer.py`: fortune cards
 - `static/js/puppet.js`: the automaton drawing, in screen and head modes
+- `static/js/portrait.js` and `static/img/mechanika/`: her photograph. Every frame (`blink`, `mouth-1` to `mouth-3`, `asleep`) is an edit of `base.png` that changes only her face, so its eyes or mouth can be laid over the base. Without these files she falls back to the drawn porcelain doll.
 - `static/js/headmap.js`, `static/js/homography.js`: head-mode surfaces, corner-pin warp and alignment
 - `static/js/sound.js`: synthesized sound effects and the phonograph chain
 - `static/js/watcher.js`: camera and face detection

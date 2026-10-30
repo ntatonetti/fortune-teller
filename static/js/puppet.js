@@ -8,6 +8,7 @@
 //            surface (see headmap.js) for projecting onto a foam head and globe
 
 import { DEFAULT_GEOM } from "./headmap.js";
+import { Portrait, MARKS, BALL } from "./portrait.js";
 
 const W = 1600;
 const H = 900;
@@ -15,6 +16,19 @@ const SERVO_HZ = 12;
 
 const PORCELAIN = ["#f6ede0", "#e6d6c2", "#bfa88e"];
 const BRASS = ["#f3d27a", "#b8862f", "#5e3d12"];
+
+// The 2D affine [a, b, c, d, e, f] that carries three points onto three others.
+function affine3([s0, s1, s2], [d0, d1, d2]) {
+  const [ux, uy, vx, vy] = [s1.x - s0.x, s1.y - s0.y, s2.x - s0.x, s2.y - s0.y];
+  const det = ux * vy - vx * uy;
+  if (Math.abs(det) < 1) return null;
+  const [px, py, qx, qy] = [d1.x - d0.x, d1.y - d0.y, d2.x - d0.x, d2.y - d0.y];
+  const a = (px * vy - qx * uy) / det;
+  const b = (py * vy - qy * uy) / det;
+  const c = (qx * ux - px * vx) / det;
+  const d = (qy * ux - py * vx) / det;
+  return [a, b, c, d, d0.x - a * s0.x - c * s0.y, d0.y - b * s0.x - d * s0.y];
+}
 
 export class Puppet {
   constructor(canvas) {
@@ -54,6 +68,10 @@ export class Puppet {
     this._flickerHold = 0;
     this.flickers = 3; // glimpses of the guest per consult (FACE_FLICKERS in .env)
     this._flickers = 0; // glimpses so far this consult
+    this.portrait = null; // her photograph, once loaded; drawn porcelain until then
+    Portrait.load().then((p) => (this.portrait = p));
+    this.jawLevel = 0; // raw voice level, for the photograph's three mouths
+    this._mouth = 0;
     this.resize();
     window.addEventListener("resize", () => this.resize());
   }
@@ -73,6 +91,7 @@ export class Puppet {
   }
 
   setJaw(level) {
+    this.jawLevel = level;
     // A wooden jaw has three positions: shut, ajar, open.
     this.jaw = level < 0.08 ? 0 : level < 0.25 ? 0.5 : 1;
   }
@@ -97,24 +116,38 @@ export class Puppet {
       c.drawImage(crop, 0, 0, toned.width, toned.height);
     }
     this.guestFace = toned;
+    // Feathered all round, for laying over her photograph.
+    const soft = document.createElement("canvas");
+    soft.width = toned.width;
+    soft.height = toned.height;
+    const s = soft.getContext("2d");
+    s.drawImage(toned, 0, 0);
+    s.globalCompositeOperation = "destination-in";
+    s.translate(soft.width / 2, soft.height / 2);
+    s.scale(1, soft.height / soft.width);
+    const g = s.createRadialGradient(0, 0, 0, 0, 0, soft.width / 2);
+    g.addColorStop(0.72, "rgba(0,0,0,1)");
+    g.addColorStop(1, "rgba(0,0,0,0)");
+    s.fillStyle = g;
+    s.fillRect(-soft.width / 2, -soft.width / 2, soft.width, soft.width);
+    this._guestSoft = soft;
   }
 
   // The transform that puts the guest's eyes on her eyes and their mouth on her
   // jaw seam (three points fix it exactly), in the toned canvas's pixels.
   _lineUp({ eyes, mouth }, w, h) {
+    const at = (p) => ({ x: ((p.x + 100) * w) / 200, y: ((p.y + 128) * h) / 256 });
+    return affine3([eyes[0], eyes[1], mouth], this._ovalMarks().map(at));
+  }
+
+  // Her eyes and mouth in face-oval units (centre 0,0; 200 x 256).
+  _ovalMarks() {
     const g = this.geom;
-    const at = (x, y) => ({ x: ((x + 100) * w) / 200, y: ((y + 128) * h) / 256 });
-    const [s0, s1, s2] = [eyes[0], eyes[1], mouth];
-    const [d0, d1, d2] = [at(-40 * g.eyeSpread, -22 + g.eyeY), at(40 * g.eyeSpread, -22 + g.eyeY), at(0, 62 + g.mouthY)];
-    const [ux, uy, vx, vy] = [s1.x - s0.x, s1.y - s0.y, s2.x - s0.x, s2.y - s0.y];
-    const det = ux * vy - vx * uy;
-    if (Math.abs(det) < 1) return null;
-    const [px, py, qx, qy] = [d1.x - d0.x, d1.y - d0.y, d2.x - d0.x, d2.y - d0.y];
-    const a = (px * vy - qx * uy) / det;
-    const b = (py * vy - qy * uy) / det;
-    const c = (qx * ux - px * vx) / det;
-    const d = (qy * ux - py * vx) / det;
-    return [a, b, c, d, d0.x - a * s0.x - c * s0.y, d0.y - b * s0.x - d * s0.y];
+    return [
+      { x: -40 * g.eyeSpread, y: -22 + g.eyeY },
+      { x: 40 * g.eyeSpread, y: -22 + g.eyeY },
+      { x: 0, y: 62 + g.mouthY },
+    ];
   }
 
   // Called every animation frame.
@@ -162,6 +195,9 @@ export class Puppet {
       this._blinkTicks = 2;
       this._blinkAt = now + 2500 + Math.random() * 5000;
     }
+    // The photograph's mouth: shut, then three openings, set on the servo clock.
+    const v = this.jawLevel;
+    this._mouth = v < 0.08 ? 0 : v < 0.2 ? 1 : v < 0.4 ? 2 : 3;
     if (this.shake > 0) {
       this.shake--;
       this._jitter = { x: (Math.random() - 0.5) * 14, y: (Math.random() - 0.5) * 8, r: (Math.random() - 0.5) * 9 };
@@ -196,6 +232,11 @@ export class Puppet {
     c.fillRect(0, 0, this.canvas.width, this.canvas.height);
     c.setTransform(this.scale, 0, 0, this.scale, this.ox, this.oy);
 
+    if (this.portrait) {
+      this._drawPortrait(time);
+      this._vignette();
+      return;
+    }
     this._backdrop();
     this._gears();
     this._torso();
@@ -203,6 +244,67 @@ export class Puppet {
     this._ball(time);
     this._hands();
     this._vignette();
+  }
+
+  // Her photograph as it is this tick: eyes shut for blinks and the trance.
+  // Her head snaps between slumped and upright (a fade would show two heads),
+  // and comes up with the eyes still shut.
+  _portraitNow(time) {
+    const p = this.pose;
+    if (this.mode === "head" && this.preview) return this.portrait.compose(Math.floor(time) % 2 ? 3 : 0, false, false);
+    if (p.slump > 0.5) return this.portrait.compose(0, false, true);
+    const shut = this._blinkTicks > 0 || (p.lidL + p.lidR) / 2 < 0.5 || p.slump > 0.1;
+    return this.portrait.compose(this._mouth, shut, false);
+  }
+
+  // The whole booth as her photograph, filling the screen.
+  _drawPortrait(time) {
+    const c = this.ctx;
+    const pt = this.portrait;
+    const k = Math.max(W / pt.width, H / pt.height);
+    const ox = (W - pt.width * k) / 2 + this._jitter.x;
+    const oy = (H - pt.height * k) / 2 + this._jitter.y;
+    const at = (p) => ({ x: ox + p.x * k, y: oy + p.y * k });
+    c.drawImage(this._portraitNow(time), ox, oy, pt.width * k, pt.height * k);
+    const b = at(BALL);
+    this._ballGlow(b.x, b.y, BALL.r * k, time);
+    if (this._guestShown && this._guestSoft) {
+      // the guest's eyes and mouth on hers
+      const m = affine3(this._ovalMarks(), [...MARKS.eyes.map(at), at(MARKS.mouth)]);
+      if (m) {
+        c.save();
+        c.transform(...m);
+        c.globalAlpha = this._guestShown;
+        c.drawImage(this._guestSoft, -100, -128, 200, 256);
+        c.restore();
+      }
+    }
+  }
+
+  // Mist swirling in her real crystal ball, brighter as she consults.
+  _ballGlow(cx, cy, r, time) {
+    const c = this.ctx;
+    const glow = this.ball;
+    c.save();
+    c.globalCompositeOperation = "screen";
+    const halo = c.createRadialGradient(cx, cy, r * 0.8, cx, cy, r * (1.6 + glow));
+    halo.addColorStop(0, `rgba(150,120,255,${glow * 0.35})`);
+    halo.addColorStop(1, "rgba(150,120,255,0)");
+    c.fillStyle = halo;
+    c.fillRect(cx - r * 3, cy - r * 3, r * 6, r * 6);
+    c.beginPath();
+    c.arc(cx, cy, r - 3, 0, Math.PI * 2);
+    c.clip();
+    c.filter = "blur(10px)";
+    for (let i = 0; i < 5; i++) {
+      const a = time * (0.4 + glow * 1.6) * (i % 2 ? 1 : -1) + i * 1.3;
+      const hue = 250 + i * 25 + Math.sin(time + i) * 20;
+      c.fillStyle = `hsla(${hue}, 80%, ${45 + glow * 20}%, ${0.1 + glow * 0.4})`;
+      c.beginPath();
+      c.ellipse(cx + Math.cos(a) * r * 0.33, cy + Math.sin(a * 1.3) * r * 0.27, r * 0.55, r * 0.24, a, 0, Math.PI * 2);
+      c.fill();
+    }
+    c.restore();
   }
 
   _backdrop() {
@@ -787,16 +889,29 @@ export class Puppet {
     this._onSurface(face, (c) => {
       c.translate(face.w / 2 + this._jitter.x * 0.3, face.h * 0.54 + this._jitter.y * 0.3);
       c.scale(1.6, 1.6);
-      const savedLids = [p.lidL, p.lidR];
-      const savedJaw = this.jaw;
-      if (this.preview) {
-        p.lidL = p.lidR = 1;
-        this.jaw = Math.floor(time) % 2; // open/shut each second to line up the lips
+      if (this.portrait) {
+        // her photograph, its eyes and mouth pinned on the foam's
+        c.save();
+        c.transform(...affine3([...MARKS.eyes, MARKS.mouth], this._ovalMarks()));
+        c.drawImage(this._portraitNow(time), 0, 0);
+        c.restore();
+        if (this._guestShown && this._guestSoft) {
+          c.globalAlpha = this._guestShown;
+          c.drawImage(this._guestSoft, -100, -128, 200, 256);
+          c.globalAlpha = 1;
+        }
+      } else {
+        const savedLids = [p.lidL, p.lidR];
+        const savedJaw = this.jaw;
+        if (this.preview) {
+          p.lidL = p.lidR = 1;
+          this.jaw = Math.floor(time) % 2; // open/shut each second to line up the lips
+        }
+        this._face(0, { nose: false });
+        this._guest(0);
+        [p.lidL, p.lidR] = savedLids;
+        this.jaw = savedJaw;
       }
-      this._face(0, { nose: false });
-      this._guest(0);
-      [p.lidL, p.lidR] = savedLids;
-      this.jaw = savedJaw;
       // Feather the edge so no hard outline spills past the foam.
       c.globalCompositeOperation = "destination-in";
       c.save();
