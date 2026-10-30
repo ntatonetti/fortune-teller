@@ -35,7 +35,7 @@ def test_endpoints_when_claude_is_down():
     with TestClient(app_module.app) as client:
         cfg = client.get("/api/config").json()
         assert cfg["flickers"] == 3
-        assert cfg["flicker_opacity"] == 0.8 and cfg["kid_flicker"] is False
+        assert cfg["flicker_opacity"] == 0.65 and cfg["kid_flicker"] is False
         assert cfg["timings"]["wake_hold"] == 0.7 and cfg["timings"]["glitch_at_min"] == 0.3
         assert set(cfg["stock"]) >= {"invite_adult", "invite_child", "farewell_child"}
         assert all(v["url"] for variants in cfg["stock"].values() for v in variants)

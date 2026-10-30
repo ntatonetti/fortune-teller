@@ -663,7 +663,7 @@ async function refreshServer() {
     server = { stock: {}, printer: "?" };
   }
   puppet.flickers = server.flickers ?? 3;
-  puppet.guestAlpha = server.flicker_opacity ?? 0.8;
+  puppet.guestAlpha = server.flicker_opacity ?? 0.65;
   if (server.timings) puppet.timing = T = server.timings;
   document.title = server.name || "The Oracle";
   $("title").textContent = server.name || "The Oracle";

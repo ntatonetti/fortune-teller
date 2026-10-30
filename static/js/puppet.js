@@ -38,9 +38,11 @@ function affine3([s0, s1, s2], [d0, d1, d2]) {
 
 // The guest's face (a camera crop and its face mesh) cut into the triangles of
 // hers, each stretched onto her photograph: their eyes, nose and mouth all land on
-// hers, at the cost of a little skew. Toned, feathered at the edge, and returned
-// with where it sits on her photo.
-function warpOntoHer(crop, mesh) {
+// hers, at the cost of a little skew. Their light and shade is matched to her
+// face's (same brightness and contrast), the edge fades well inside her outline,
+// and it is drawn in "luminosity" so her skin keeps its colour. Returned with
+// where it sits on her photo.
+function warpOntoHer(crop, mesh, photo) {
   const xs = HER.map((p) => p[0]);
   const ys = HER.map((p) => p[1]);
   const x0 = Math.floor(Math.min(...xs)) - 2;
@@ -48,13 +50,13 @@ function warpOntoHer(crop, mesh) {
   const cv = document.createElement("canvas");
   cv.width = Math.ceil(Math.max(...xs)) + 2 - x0;
   cv.height = Math.ceil(Math.max(...ys)) + 2 - y0;
-  const toned = document.createElement("canvas");
-  toned.width = crop.width;
-  toned.height = crop.height;
-  const t = toned.getContext("2d");
-  t.filter = TONE;
+  const gray = document.createElement("canvas");
+  gray.width = crop.width;
+  gray.height = crop.height;
+  const t = gray.getContext("2d");
+  t.filter = "grayscale(1)";
   t.drawImage(crop, 0, 0);
-  const c = cv.getContext("2d");
+  const c = cv.getContext("2d", { willReadFrequently: true });
   const her = HER.map(([x, y]) => ({ x: x - x0, y: y - y0 }));
   const theirs = IDX.map((i) => mesh[i]);
   for (const tri of TRIS) {
@@ -72,19 +74,50 @@ function warpOntoHer(crop, mesh) {
     }
     c.clip();
     c.transform(...m);
-    c.drawImage(toned, 0, 0);
+    c.drawImage(gray, 0, 0);
     c.restore();
   }
-  // a soft edge just inside her face's outline
+  matchLight(c, photo, x0, y0);
+  // a wide soft edge well inside her face's outline, so it melts into her
   const rim = her.slice(0, OUTLINE);
   const mx = rim.reduce((a, p) => a + p.x, 0) / rim.length;
   const my = rim.reduce((a, p) => a + p.y, 0) / rim.length;
   c.globalCompositeOperation = "destination-in";
-  c.filter = "blur(6px)";
+  c.filter = "blur(12px)";
   c.beginPath();
-  for (const p of rim) c.lineTo(mx + (p.x - mx) * 0.96, my + (p.y - my) * 0.96);
+  for (const p of rim) c.lineTo(mx + (p.x - mx) * 0.88, my + (p.y - my) * 0.88);
   c.fill();
   return { canvas: cv, x: x0, y: y0 };
+}
+
+// Shift the warped face's brightness and contrast to match her photo under it.
+function matchLight(c, photo, x0, y0) {
+  const { width: w, height: h } = c.canvas;
+  const under = document.createElement("canvas");
+  under.width = w;
+  under.height = h;
+  const u = under.getContext("2d", { willReadFrequently: true });
+  u.drawImage(photo, -x0, -y0);
+  const theirs = c.getImageData(0, 0, w, h);
+  const hers = u.getImageData(0, 0, w, h).data;
+  const px = theirs.data;
+  const lum = (d, i) => 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+  let n = 0, st = 0, st2 = 0, sh = 0, sh2 = 0;
+  for (let i = 0; i < px.length; i += 4) {
+    if (px[i + 3] < 250) continue;
+    const a = lum(px, i);
+    const b = lum(hers, i);
+    n++; st += a; st2 += a * a; sh += b; sh2 += b * b;
+  }
+  if (n < 100) return;
+  const [mt, mh] = [st / n, sh / n];
+  const sdT = Math.sqrt(Math.max(1, st2 / n - mt * mt));
+  const sdH = Math.sqrt(Math.max(1, sh2 / n - mh * mh));
+  for (let i = 0; i < px.length; i += 4) {
+    const v = (lum(px, i) - mt) * (sdH / sdT) + mh;
+    px[i] = px[i + 1] = px[i + 2] = v;
+  }
+  c.putImageData(theirs, 0, 0);
 }
 
 export class Puppet {
@@ -124,7 +157,7 @@ export class Puppet {
     this.guestFace = null; // the guest's face, toned like a spirit photograph
     this.flicker = false; // while consulting: her face and the guest's trade places
     this._guestShown = 0; // 0 her; guestAlpha while the guest's face shows over hers
-    this.guestAlpha = 0.8; // how solid their face is over hers (FLICKER_OPACITY in .env)
+    this.guestAlpha = 0.65; // how solid their face is over hers (FLICKER_OPACITY in .env)
     this._flickerHold = 0;
     this.flickers = 3; // glimpses of the guest per consult (FACE_FLICKERS in .env)
     this._flickers = 0; // glimpses so far this consult
@@ -191,7 +224,7 @@ export class Puppet {
     s.fillStyle = g;
     s.fillRect(-soft.width / 2, -soft.width / 2, soft.width, soft.width);
     this._guestSoft = soft;
-    this._guestWarp = crop.mesh && this.portrait ? warpOntoHer(crop, crop.mesh) : null;
+    this._guestWarp = crop.mesh && this.portrait ? warpOntoHer(crop, crop.mesh, this.portrait.base) : null;
   }
 
   // The transform that puts the guest's eyes on her eyes and their mouth on her
@@ -333,9 +366,11 @@ export class Puppet {
     this._ballGlow(b.x, b.y, BALL.r * k, time);
     const g = this._guestWarp;
     if (this._guestShown && g) {
-      // the guest's face warped onto hers
+      // the guest's face warped onto hers: their shading, her colour
       c.globalAlpha = this._guestShown;
+      c.globalCompositeOperation = "luminosity";
       c.drawImage(g.canvas, ox + g.x * k, oy + g.y * k, g.canvas.width * k, g.canvas.height * k);
+      c.globalCompositeOperation = "source-over";
       c.globalAlpha = 1;
     } else if (this._guestShown && this._guestSoft) {
       // no face mesh: just their eyes and mouth on hers
@@ -966,6 +1001,7 @@ export class Puppet {
         const g = this._guestWarp;
         if (this._guestShown && g) {
           c.globalAlpha = this._guestShown;
+          c.globalCompositeOperation = "luminosity";
           c.drawImage(g.canvas, g.x, g.y);
         }
         c.restore();
