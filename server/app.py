@@ -20,12 +20,13 @@ stock_audio: dict[str, list[str | None]] = {}
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    missing = [k for k in ("ANTHROPIC_API_KEY", "ELEVENLABS_API_KEY", "ELEVENLABS_VOICE_ID") if not getattr(config, k)]
+    if missing:
+        raise RuntimeError(f"Set {', '.join(missing)} in .env: she needs Claude and ElevenLabs to run")
     stock_audio.update(await voice.prewarm())
     log.info(
-        "Oracle ready: model=%s claude=%s voice=%s sfx=%d clips printer=%s guests_remembered=%d",
+        "Oracle ready: model=%s sfx=%d clips printer=%s guests_remembered=%d",
         config.CLAUDE_MODEL,
-        bool(config.ANTHROPIC_API_KEY),
-        voice.provider(),
         sum(len(urls) for urls in sfx.available().values()),
         config.PRINTER,
         guests.count(),
@@ -34,6 +35,11 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan)
+
+
+class Heard(BaseModel):
+    question: str
+    kid: bool = False
 
 
 class Frame(BaseModel):
@@ -59,8 +65,6 @@ def _audio_url(name: str | None) -> str | None:
 async def get_config():
     return {
         "name": config.ORACLE_NAME,
-        "claude": bool(config.ANTHROPIC_API_KEY),
-        "voice": voice.provider(),
         "printer": config.PRINTER,
         "guests": guests.count(),
         "stock": {
@@ -74,9 +78,20 @@ async def get_config():
 @app.post("/api/greet")
 async def greet(frame: Frame):
     g = await oracle.greet(_b64(frame.image))
-    log.info("greet: audience=%s size=%d costume=%r source=%s", g.audience, g.group_size, g.costume, g.source)
+    if g is None:
+        raise HTTPException(503, "Claude unavailable")
+    log.info("greet: audience=%s size=%d costume=%r", g.audience, g.group_size, g.costume)
     audio = await voice.speak(g.greeting) if g.audience != "nobody" else None
     return {**g.model_dump(), "audio": _audio_url(audio)}
+
+
+@app.post("/api/asked")
+async def asked(heard: Heard):
+    done = await oracle.asked(heard.question, heard.kid)
+    if done is None:
+        raise HTTPException(503, "Claude unavailable")
+    log.info("asked: %d words, %s", len(heard.question.split()), "finished" if done else "still going")
+    return {"done": done}
 
 
 @app.post("/api/fortune")
@@ -89,16 +104,17 @@ async def fortune(frame: Frame):
         question=frame.question,
         paid_with=frame.paid_with,
     )
+    if f is None:
+        raise HTTPException(503, "Claude unavailable")
     log.info(
-        "fortune: audience=%s paid=%s asked=%s title=%r source=%s",
+        "fortune: audience=%s paid=%s asked=%s title=%r",
         f.audience,
         frame.paid_with or "-",
         "yes" if f.question else "no",
         f.card_title,
-        f.source,
     )
     audio = await voice.speak(f.spoken)
-    if f.source == "claude" and f.audience != "nobody":
+    if f.audience != "nobody":
         guests.add(
             f.costume,
             f.audience,
@@ -121,7 +137,7 @@ async def audio(name: str):
     path = voice.cached_path(name)
     if path is None:
         raise HTTPException(404)
-    return FileResponse(path, media_type="audio/mpeg" if path.suffix == ".mp3" else "audio/wav")
+    return FileResponse(path, media_type="audio/mpeg")
 
 
 @app.get("/api/guests")

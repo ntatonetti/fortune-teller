@@ -1,13 +1,14 @@
-// The camera and face detection (MediaPipe, runs locally in the browser).
-// Reports the nearest face: where it is and how close (by face width).
+// The camera and face detection (MediaPipe from its CDN, runs in the browser).
+// Reports the nearest face: where it is, how close (by face width), and
+// whether it's turned toward her or away (talking to a friend, say).
 
-import { FaceDetector, FilesetResolver } from "/vendor/mediapipe/vision_bundle.mjs";
+import { FaceDetector, FilesetResolver } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.1.1/vision_bundle.mjs";
 
 export class Watcher {
   constructor(video) {
     this.video = video;
     this.detector = null;
-    this.nearest = null; // {x, y, w} normalized 0..1 in the camera image, or null
+    this.nearest = null; // {x, y, w, h, kp, turn} normalized 0..1 in the camera image, or null
     this.faces = [];
     this._lastVideoTime = -1;
     this._snap = document.createElement("canvas");
@@ -27,9 +28,9 @@ export class Watcher {
     this.video.srcObject = await navigator.mediaDevices.getUserMedia(constraints);
     await this.video.play();
     if (!this.detector) {
-      const fileset = await FilesetResolver.forVisionTasks("/vendor/mediapipe/wasm");
+      const fileset = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.1.1/wasm");
       this.detector = await FaceDetector.createFromOptions(fileset, {
-        baseOptions: { modelAssetPath: "/vendor/mediapipe/blaze_face_short_range.tflite", delegate: "GPU" },
+        baseOptions: { modelAssetPath: "https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite", delegate: "GPU" },
         runningMode: "VIDEO",
         minDetectionConfidence: 0.5,
       });
@@ -54,9 +55,18 @@ export class Watcher {
       const b = d.boundingBox;
       // keypoints come normalized: right eye, left eye, nose, mouth, ears; keep eyes and mouth
       const kp = d.keypoints?.length >= 4 ? [d.keypoints[0], d.keypoints[1], d.keypoints[3]] : null;
-      return { x: (b.originX + b.width / 2) / vw, y: (b.originY + b.height / 2) / vh, w: b.width / vw, h: b.height / vh, kp };
+      // How far the nose sits off the line between the eyes, in eye-widths:
+      // about 0 facing her, 0.5 or more turned well to one side.
+      const [eyeR, eyeL, nose] = d.keypoints || [];
+      const turn = nose ? Math.abs(nose.x - (eyeR.x + eyeL.x) / 2) / Math.max(0.01, Math.abs(eyeR.x - eyeL.x)) : 0;
+      return { x: (b.originX + b.width / 2) / vw, y: (b.originY + b.height / 2) / vh, w: b.width / vw, h: b.height / vh, kp, turn };
     });
     this.nearest = this.faces.reduce((best, f) => (!best || f.w > best.w ? f : best), null);
+  }
+
+  // The nearest guest has turned their head away from her.
+  get lookingAway() {
+    return this.nearest?.turn > 0.3;
   }
 
   // A JPEG of the current camera frame for Claude, base64 data URL.

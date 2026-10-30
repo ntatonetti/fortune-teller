@@ -6,7 +6,6 @@ class Greeting(BaseModel):
     group_size: int
     costume: str
     greeting: str
-    source: str = "claude"
 
 
 class Fortune(BaseModel):
@@ -19,5 +18,4 @@ class Fortune(BaseModel):
     lucky_number: int
     task: str
     gist: str
-    source: str = "claude"
     question: str = ""  # what the guest asked, for the printed card

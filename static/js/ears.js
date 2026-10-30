@@ -24,21 +24,27 @@ export class Ears {
 
   // Resolves with what the guest said ("" if nothing). Stops on its own after
   // `silenceMs` of quiet once they've started talking, `waitMs` if they never
-  // start, or `maxMs` total.
-  listen({ maxMs = 12000, waitMs = 7000, silenceMs = 1600, onHeard } = {}) {
+  // start, or `maxMs` total. Optional, for guests who need patience:
+  // - `silenceMs` may be a function of what's been heard so far;
+  // - `hold()` returning true stops the quiet clock (they're looking away);
+  // - `confirm(text)` resolves true if the words so far are a finished
+  //   thought; if not, she waits `moreMs` longer before giving up on more.
+  //   It's asked a little before the pause is up, to hide its delay.
+  listen({ maxMs = 12000, waitMs = 7000, silenceMs = 1600, moreMs = 6000, onHeard, hold, confirm } = {}) {
     this.cancel();
     return new Promise((resolve) => {
       let finalText = "";
       let interim = "";
       let rec = null;
-      let silenceTimer = null;
-      const timers = [];
+      const started = performance.now();
+      let activeAt = started; // last time they spoke, or were busy looking away
+      let checking = false;
+      let judged = null; // {text, done}: confirm()'s verdict on the words so far
       const text = () => `${finalText} ${interim}`.replace(/\s+/g, " ").trim();
       const finish = (override) => {
         if (this._current !== handle) return;
         this._current = null;
-        timers.forEach(clearTimeout);
-        clearTimeout(silenceTimer);
+        clearInterval(poll);
         try {
           rec?.abort();
         } catch {
@@ -48,8 +54,25 @@ export class Ears {
       };
       const handle = { finish };
       this._current = handle;
-      timers.push(setTimeout(() => finish(), maxMs));
-      timers.push(setTimeout(() => !text() && finish(), waitMs));
+      const poll = setInterval(async () => {
+        const now = performance.now();
+        if (now - started > maxMs) return finish();
+        if (hold?.()) {
+          activeAt = now;
+          return;
+        }
+        const t = text();
+        const quiet = now - activeAt;
+        if (!t) return quiet > waitMs && finish();
+        const enough = typeof silenceMs === "function" ? silenceMs(t) : silenceMs;
+        if (!confirm) return quiet >= enough && finish();
+        if (judged?.text === t) return quiet >= enough + (judged.done ? 0 : moreMs) && finish();
+        if (checking || quiet < Math.max(600, enough - 1500)) return;
+        checking = true;
+        const done = await confirm(t).catch(() => true);
+        checking = false;
+        judged = { text: t, done }; // stale (and ignored) if they carried on meanwhile
+      }, 150);
 
       if (!SR) return; // typed input (inject) or the timers will finish it
       rec = new SR();
@@ -63,9 +86,8 @@ export class Ears {
           if (r.isFinal) finalText += ` ${r[0].transcript}`;
           else interim += ` ${r[0].transcript}`;
         }
+        activeAt = performance.now();
         onHeard?.(text());
-        clearTimeout(silenceTimer);
-        silenceTimer = setTimeout(() => finish(), silenceMs);
       };
       rec.onerror = (e) => {
         if (e.error !== "no-speech" && e.error !== "aborted") console.warn("speech recognition:", e.error);
@@ -75,9 +97,12 @@ export class Ears {
           finish();
         }
       };
-      // Chrome ends sessions by itself now and then; keep going until we finish.
+      // Chrome ends sessions by itself now and then (more often during long
+      // pauses); keep going until we finish, without losing half-heard words.
       rec.onend = () => {
         if (this._current !== handle) return;
+        finalText += ` ${interim}`;
+        interim = "";
         try {
           rec.start();
         } catch {

@@ -20,17 +20,18 @@ ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 CLAUDE_MODEL = os.getenv("CLAUDE_MODEL", "claude-opus-5-5")
 GREET_EFFORT = os.getenv("GREET_EFFORT", "low")
 FORTUNE_EFFORT = os.getenv("FORTUNE_EFFORT", "low")
-# Past these, she uses a canned line rather than keep a guest waiting.
+# Past these she gives up on the call: no greeting, or "the spirits are silent".
 GREET_TIMEOUT_S = float(os.getenv("GREET_TIMEOUT_S", "8"))
 FORTUNE_TIMEOUT_S = float(os.getenv("FORTUNE_TIMEOUT_S", "20"))
+# The quick "have they finished asking?" check at each pause in their question.
+ASKED_MODEL = os.getenv("ASKED_MODEL", "claude-haiku-5-5")
+ASKED_TIMEOUT_S = float(os.getenv("ASKED_TIMEOUT_S", "4"))
 
 # Voice
 ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY", "")
 ELEVENLABS_VOICE_ID = os.getenv("ELEVENLABS_VOICE_ID", "")
 ELEVENLABS_MODEL = os.getenv("ELEVENLABS_MODEL", "eleven_flash_v2_5")
 ELEVENLABS_CONCURRENCY = int(os.getenv("ELEVENLABS_CONCURRENCY", "2"))  # max requests at once
-SAY_VOICE = os.getenv("SAY_VOICE", "Grandma (English (US))")
-SAY_RATE = int(os.getenv("SAY_RATE", "150"))
 
 # Printer: "none", "console" (prints the card to the terminal), or "usb"
 PRINTER = os.getenv("PRINTER", "console")
