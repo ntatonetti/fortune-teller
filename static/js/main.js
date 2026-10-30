@@ -331,6 +331,8 @@ async function runReading({ paid = false } = {}) {
   let audience = greet?.audience && greet.audience !== "nobody" ? greet.audience : "child";
   if (settings.audience !== "auto") audience = settings.audience;
   const kid = audience === "child" || audience === "mixed";
+  const showFace = !kid || !!server.kid_flicker; // kids see their face in hers only with KID_FLICKER
+  if (!showFace) puppet.guestFace = null;
   reading = { audience, kid, costume: greet?.costume || "", fortune: null, paidWith: paid ? "coin" : "", question: "" };
   puppet.set({ brow: kid ? 1 : 0.4 });
 
@@ -377,9 +379,11 @@ async function consultAndSpeak() {
   sound.ball(1);
   // Adults get the eyes rolled up into the head; kids see her gaze into the ball.
   puppet.set(kid ? { eyeX: 0, eyeY: 1, lidL: 0.6, lidR: 0.6 } : { eyeX: 0, eyeY: -1, lidL: 0.35, lidR: 0.35, tilt: -6 });
-  // Her face and the guest's flicker back and forth while the spirits answer.
-  puppet.setGuestFace(watcher.faceCrop());
-  puppet.flicker = true;
+  // Her face and the guest's flicker back and forth while the spirits answer
+  // (for kids only with KID_FLICKER).
+  const showFace = !kid || !!server.kid_flicker;
+  if (showFace) puppet.setGuestFace(watcher.faceCrop());
+  puppet.flicker = showFace;
 
   const shot = watcher.snapshot();
   const started = performance.now();

@@ -50,6 +50,7 @@ MEMORY_MAX_AGE_H = float(os.getenv("MEMORY_MAX_AGE_H", "12"))  # older guests ar
 # Glimpses of the guest's face over hers while she consults; 0 turns it off
 FACE_FLICKERS = int(os.getenv("FACE_FLICKERS", "3"))
 FLICKER_OPACITY = float(os.getenv("FLICKER_OPACITY", "0.8"))  # 1 = their face only, 0.5 = half each
+KID_FLICKER = _bool("KID_FLICKER", False)  # kids see their own face in hers too
 
 # Every pause, wait and transition in a reading, in seconds unless noted; each
 # is listed with what it does in .env.example. Sent to the browser as

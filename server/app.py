@@ -69,6 +69,7 @@ async def get_config():
         "printer": config.PRINTER,
         "flickers": config.FACE_FLICKERS,
         "flicker_opacity": config.FLICKER_OPACITY,
+        "kid_flicker": config.KID_FLICKER,
         "timings": config.TIMINGS,
         "guests": guests.count(),
         "stock": {

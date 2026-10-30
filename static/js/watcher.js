@@ -4,6 +4,12 @@
 
 import { FaceDetector, FaceLandmarker, FilesetResolver } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.1.1/vision_bundle.mjs";
 
+// The iris centres and the middle of the lips, from a face mesh.
+function meshMarks(m) {
+  const [a, b] = [m[468], m[473]];
+  return { eyes: a.x < b.x ? [a, b] : [b, a], mouth: { x: (m[13].x + m[14].x) / 2, y: (m[13].y + m[14].y) / 2 } };
+}
+
 export class Watcher {
   constructor(video) {
     this.video = video;
@@ -111,7 +117,8 @@ export class Watcher {
       c.drawImage(v, sx, sy, side, side, 0, 0, crop.width, crop.height);
       const at = (p) => ({ x: crop.width - (p.x * vw - sx) * k, y: (p.y * vh - sy) * k });
       const [e1, e2, mouth] = f.kp.map(at);
-      crop.marks = this._meshMarks(crop) || { eyes: e1.x < e2.x ? [e1, e2] : [e2, e1], mouth };
+      crop.mesh = this._mesh(crop);
+      crop.marks = crop.mesh ? meshMarks(crop.mesh) : { eyes: e1.x < e2.x ? [e1, e2] : [e2, e1], mouth };
       return crop;
     }
     const boxH = (f.h || (f.w * vw) / vh) * vh; // detector box: about brows to chin
@@ -129,9 +136,9 @@ export class Watcher {
     return crop;
   }
 
-  // The iris centres and the middle of the lips, found by the face mesh in the crop
-  // itself: much closer than the detector's rough keypoints, which also lag a frame.
-  _meshMarks(crop) {
+  // The face mesh (478 points, in crop pixels) found in the crop itself: much
+  // closer than the detector's rough keypoints, which also lag a frame.
+  _mesh(crop) {
     let lm;
     try {
       lm = this.landmarker?.detect(crop).faceLandmarks?.[0];
@@ -139,8 +146,6 @@ export class Watcher {
       console.warn("face mesh failed", e);
     }
     if (!lm || lm.length < 478) return null;
-    const at = (i) => ({ x: lm[i].x * crop.width, y: lm[i].y * crop.height });
-    const [a, b, upper, lower] = [at(468), at(473), at(13), at(14)];
-    return { eyes: a.x < b.x ? [a, b] : [b, a], mouth: { x: (upper.x + lower.x) / 2, y: (upper.y + lower.y) / 2 } };
+    return lm.map((q) => ({ x: q.x * crop.width, y: q.y * crop.height }));
   }
 }

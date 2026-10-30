@@ -9,11 +9,13 @@
 
 import { DEFAULT_GEOM } from "./headmap.js";
 import { Portrait, MARKS, BALL } from "./portrait.js";
+import { IDX, OUTLINE, HER, TRIS } from "./mechanika-mesh.js";
 
 const W = 1600;
 const H = 900;
 const SERVO_HZ = 12;
 
+const TONE = "grayscale(1) sepia(0.85) contrast(1.45) brightness(1.08)"; // a camera face as a spirit photograph
 const PORCELAIN = ["#f6ede0", "#e6d6c2", "#bfa88e"];
 const BRASS = ["#f3d27a", "#b8862f", "#5e3d12"];
 
@@ -32,6 +34,57 @@ function affine3([s0, s1, s2], [d0, d1, d2]) {
   const c = (qx * ux - px * vx) / det;
   const d = (qy * ux - py * vx) / det;
   return [a, b, c, d, d0.x - a * s0.x - c * s0.y, d0.y - b * s0.x - d * s0.y];
+}
+
+// The guest's face (a camera crop and its face mesh) cut into the triangles of
+// hers, each stretched onto her photograph: their eyes, nose and mouth all land on
+// hers, at the cost of a little skew. Toned, feathered at the edge, and returned
+// with where it sits on her photo.
+function warpOntoHer(crop, mesh) {
+  const xs = HER.map((p) => p[0]);
+  const ys = HER.map((p) => p[1]);
+  const x0 = Math.floor(Math.min(...xs)) - 2;
+  const y0 = Math.floor(Math.min(...ys)) - 2;
+  const cv = document.createElement("canvas");
+  cv.width = Math.ceil(Math.max(...xs)) + 2 - x0;
+  cv.height = Math.ceil(Math.max(...ys)) + 2 - y0;
+  const toned = document.createElement("canvas");
+  toned.width = crop.width;
+  toned.height = crop.height;
+  const t = toned.getContext("2d");
+  t.filter = TONE;
+  t.drawImage(crop, 0, 0);
+  const c = cv.getContext("2d");
+  const her = HER.map(([x, y]) => ({ x: x - x0, y: y - y0 }));
+  const theirs = IDX.map((i) => mesh[i]);
+  for (const tri of TRIS) {
+    const d = tri.map((i) => her[i]);
+    const m = affine3(tri.map((i) => theirs[i]), d);
+    if (!m) continue;
+    // clipped a pixel past its edges, so no seams show between triangles
+    const cx = (d[0].x + d[1].x + d[2].x) / 3;
+    const cy = (d[0].y + d[1].y + d[2].y) / 3;
+    c.save();
+    c.beginPath();
+    for (const p of d) {
+      const l = Math.hypot(p.x - cx, p.y - cy) || 1;
+      c.lineTo(p.x + (p.x - cx) / l, p.y + (p.y - cy) / l);
+    }
+    c.clip();
+    c.transform(...m);
+    c.drawImage(toned, 0, 0);
+    c.restore();
+  }
+  // a soft edge just inside her face's outline
+  const rim = her.slice(0, OUTLINE);
+  const mx = rim.reduce((a, p) => a + p.x, 0) / rim.length;
+  const my = rim.reduce((a, p) => a + p.y, 0) / rim.length;
+  c.globalCompositeOperation = "destination-in";
+  c.filter = "blur(6px)";
+  c.beginPath();
+  for (const p of rim) c.lineTo(mx + (p.x - mx) * 0.96, my + (p.y - my) * 0.96);
+  c.fill();
+  return { canvas: cv, x: x0, y: y0 };
 }
 
 export class Puppet {
@@ -114,7 +167,7 @@ export class Puppet {
     toned.width = 240; // her face oval, 200 x 256
     toned.height = 307;
     const c = toned.getContext("2d");
-    c.filter = "grayscale(1) sepia(0.85) contrast(1.45) brightness(1.08)";
+    c.filter = TONE;
     const m = crop.marks && this._lineUp(crop.marks, toned.width, toned.height);
     if (m) {
       c.setTransform(...m);
@@ -138,6 +191,7 @@ export class Puppet {
     s.fillStyle = g;
     s.fillRect(-soft.width / 2, -soft.width / 2, soft.width, soft.width);
     this._guestSoft = soft;
+    this._guestWarp = crop.mesh && this.portrait ? warpOntoHer(crop, crop.mesh) : null;
   }
 
   // The transform that puts the guest's eyes on her eyes and their mouth on her
@@ -277,8 +331,14 @@ export class Puppet {
     c.drawImage(this._portraitNow(time), ox, oy, pt.width * k, pt.height * k);
     const b = at(BALL);
     this._ballGlow(b.x, b.y, BALL.r * k, time);
-    if (this._guestShown && this._guestSoft) {
-      // the guest's eyes and mouth on hers
+    const g = this._guestWarp;
+    if (this._guestShown && g) {
+      // the guest's face warped onto hers
+      c.globalAlpha = this._guestShown;
+      c.drawImage(g.canvas, ox + g.x * k, oy + g.y * k, g.canvas.width * k, g.canvas.height * k);
+      c.globalAlpha = 1;
+    } else if (this._guestShown && this._guestSoft) {
+      // no face mesh: just their eyes and mouth on hers
       const m = affine3(this._ovalMarks(), [...MARKS.eyes.map(at), at(MARKS.mouth)]);
       if (m) {
         c.save();
@@ -903,8 +963,13 @@ export class Puppet {
         c.save();
         c.transform(...affine3([...MARKS.eyes, MARKS.mouth], this._ovalMarks()));
         c.drawImage(this._portraitNow(time), 0, 0);
+        const g = this._guestWarp;
+        if (this._guestShown && g) {
+          c.globalAlpha = this._guestShown;
+          c.drawImage(g.canvas, g.x, g.y);
+        }
         c.restore();
-        if (this._guestShown && this._guestSoft) {
+        if (this._guestShown && this._guestSoft && !g) {
           c.globalAlpha = this._guestShown;
           c.drawImage(this._guestSoft, -100, -128, 200, 256);
           c.globalAlpha = 1;
