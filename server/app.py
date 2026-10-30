@@ -7,7 +7,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import config, oracle, printer, sfx, variety, voice
+from . import config, oracle, printer, sfx, steer, variety, voice
 from .memory import GuestLog
 from .models import Fortune
 
@@ -81,6 +81,7 @@ async def greet(frame: Frame):
 
 @app.post("/api/fortune")
 async def fortune(frame: Frame):
+    note = steer.next_guest
     f = await oracle.fortune(
         _b64(frame.image),
         frame.audience,
@@ -88,6 +89,7 @@ async def fortune(frame: Frame):
         guests.recent(config.MEMORY_RECALL),
         question=frame.question,
         paid_with=frame.paid_with,
+        steer_note=note,
     )
     log.info(
         "fortune: audience=%s paid=%s asked=%s title=%r source=%s",
@@ -99,6 +101,7 @@ async def fortune(frame: Frame):
     )
     audio = await voice.speak(f.spoken)
     if f.source == "claude" and f.audience != "nobody":
+        steer.consume(note, f.costume)
         guests.add(
             f.costume,
             f.audience,
@@ -135,6 +138,23 @@ async def clear_guests():
     variety.recent_greetings.clear()
     log.info("memory cleared: she has forgotten every guest")
     return {"cleared": True}
+
+
+class SteerNotes(BaseModel):
+    tonight: str | None = None
+    next_guest: str | None = None
+
+
+@app.get("/api/steer")
+async def get_steer():
+    return {"tonight": steer.tonight, "next_guest": steer.next_guest, "used_for": steer.used_for, "claude": bool(config.ANTHROPIC_API_KEY)}
+
+
+@app.put("/api/steer")
+async def put_steer(notes: SteerNotes):
+    steer.set_notes(notes.tonight, notes.next_guest)
+    log.info("steer: tonight=%s next_guest=%s", "set" if steer.tonight else "-", "set" if steer.next_guest else "-")
+    return await get_steer()
 
 
 app.mount("/", StaticFiles(directory=config.ROOT / "static", html=True), name="static")

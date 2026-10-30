@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#1a0f1c" />
+    <title>Whisper to the Oracle</title>
+    <style>
+      :root {
+        --velvet: #1a0f1c;
+        --velvet-deep: #120a14;
+        --gold: #e3b95a;
+        --gold-dim: #8a6a2a;
+        --ink: #efe3c4;
+        --muted: #a08d6c;
+        --oracle-font: Luminari, Herculanum, Copperplate, "Palatino", Georgia, serif;
+        --body-font: "Palatino", "Palatino Linotype", "Book Antiqua", Georgia, serif;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background: radial-gradient(120% 70% at 50% 0%, #2a1528 0%, var(--velvet) 55%, var(--velvet-deep) 100%);
+        color: var(--ink);
+        font: 1.0625rem/1.55 var(--body-font);
+      }
+
+      main {
+        max-width: 34rem;
+        padding: 2rem 1.25rem 3rem;
+      }
+
+      h1 {
+        margin: 0 0 0.35rem;
+        font: 2rem/1.15 var(--oracle-font);
+        color: var(--gold);
+        text-shadow: 0 0 14px rgba(227, 185, 90, 0.35);
+      }
+
+      .lede {
+        margin: 0 0 2rem;
+        color: var(--muted);
+      }
+
+      .warn {
+        margin: -1rem 0 2rem;
+        padding: 0.6rem 0.8rem;
+        border-left: 3px solid var(--gold);
+        color: var(--gold);
+      }
+
+      section + section {
+        margin-top: 2.25rem;
+      }
+
+      label {
+        display: block;
+        font-size: 1.25rem;
+        color: var(--gold);
+      }
+
+      .hint {
+        margin: 0.15rem 0 0.6rem;
+        color: var(--muted);
+        font-size: 0.95rem;
+        font-style: italic;
+      }
+
+      textarea {
+        display: block;
+        width: 100%;
+        min-height: 6.5rem;
+        padding: 0.75rem 0.85rem;
+        border: 1px solid var(--gold-dim);
+        border-radius: 3px;
+        background: rgba(0, 0, 0, 0.35);
+        color: var(--ink);
+        font: inherit;
+        resize: vertical;
+      }
+
+      textarea:focus-visible,
+      button:focus-visible {
+        outline: 2px solid var(--gold);
+        outline-offset: 2px;
+      }
+
+      .row {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 0.5rem 0.75rem;
+        margin-top: 0.6rem;
+      }
+
+      button {
+        padding: 0.55rem 1.1rem;
+        border: 1px solid var(--gold);
+        border-radius: 3px;
+        background: transparent;
+        color: var(--gold);
+        font: inherit;
+        white-space: nowrap;
+        cursor: pointer;
+      }
+
+      button.primary {
+        background: var(--gold);
+        color: var(--velvet-deep);
+      }
+
+      button:disabled {
+        opacity: 0.45;
+        cursor: default;
+      }
+
+      .status {
+        flex: 1 1 12rem;
+        color: var(--muted);
+        font-size: 0.95rem;
+      }
+
+      /* The one moment of motion: the note goes up in smoke once she has used it. */
+      .used textarea {
+        animation: smoke 1.2s ease-out;
+      }
+
+      @keyframes smoke {
+        from {
+          box-shadow: 0 0 0 0 rgba(227, 185, 90, 0.7);
+          border-color: var(--gold);
+        }
+        to {
+          box-shadow: 0 0 0 14px rgba(227, 185, 90, 0);
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .used textarea {
+          animation: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Whisper to the Oracle</h1>
+      <p class="lede">She hears these before she speaks. Guests never do.</p>
+      <p class="warn" id="noClaude" hidden>
+        Claude isn't connected, so she's reading canned fortunes and won't use these notes.
+      </p>
+
+      <section id="nextSection">
+        <label for="next">Next guest</label>
+        <p class="hint">Used for one reading, then cleared. "This is Sam, it's her birthday." "Tell him to ask Priya to dance."</p>
+        <textarea id="next" maxlength="500"></textarea>
+        <div class="row">
+          <button class="primary" data-field="next_guest" data-input="next">Whisper it</button>
+          <button data-clear="next">Clear</button>
+          <span class="status" id="nextStatus" role="status"></span>
+        </div>
+      </section>
+
+      <section>
+        <label for="tonight">All night</label>
+        <p class="hint">Stays until you change it. "The costume contest is at 9; nudge people to enter." "Keep fortunes short."</p>
+        <textarea id="tonight" maxlength="500"></textarea>
+        <div class="row">
+          <button class="primary" data-field="tonight" data-input="tonight">Whisper it</button>
+          <button data-clear="tonight">Clear</button>
+          <span class="status" id="tonightStatus" role="status"></span>
+        </div>
+      </section>
+    </main>
+
+    <script>
+      const $ = (id) => document.getElementById(id);
+      const saved = { tonight: "", next_guest: "" };
+      const fieldFor = { next: "next_guest", tonight: "tonight" };
+
+      function render(state, justSaved = "") {
+        $("noClaude").hidden = state.claude;
+        for (const [input, field] of Object.entries(fieldFor)) {
+          const box = $(input);
+          const dirty = box.value.trim() !== saved[field];
+          // Never wipe what the keeper is in the middle of typing.
+          if (field === justSaved || !dirty) box.value = state[field];
+          saved[field] = state[field];
+        }
+        const wasPending = $("nextStatus").dataset.pending === "1";
+        if (state.next_guest) {
+          $("nextStatus").textContent = "Waiting for the next reading.";
+          $("nextStatus").dataset.pending = "1";
+        } else if (state.used_for) {
+          $("nextStatus").textContent = `Used for ${state.used_for}.`;
+          $("nextStatus").dataset.pending = "";
+          if (wasPending) {
+            $("nextSection").classList.remove("used");
+            void $("nextSection").offsetWidth;
+            $("nextSection").classList.add("used");
+          }
+        } else {
+          $("nextStatus").textContent = "";
+          $("nextStatus").dataset.pending = "";
+        }
+        $("tonightStatus").textContent = state.tonight ? "She's following this." : "";
+      }
+
+      async function send(field, value) {
+        const res = await fetch("/api/steer", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ [field]: value }),
+        });
+        if (!res.ok) throw new Error(res.status);
+        return res.json();
+      }
+
+      async function save(field, input) {
+        const status = $(input === "next" ? "nextStatus" : "tonightStatus");
+        try {
+          saved[field] = $(input).value.trim();
+          render(await send(field, $(input).value), field);
+        } catch {
+          status.textContent = "Didn't reach the booth. Check the laptop is on the same Wi-Fi, then try again.";
+        }
+      }
+
+      document.addEventListener("click", (e) => {
+        const b = e.target.closest("button");
+        if (!b) return;
+        if (b.dataset.field) save(b.dataset.field, b.dataset.input);
+        if (b.dataset.clear) {
+          $(b.dataset.clear).value = "";
+          save(fieldFor[b.dataset.clear], b.dataset.clear);
+        }
+      });
+
+      async function poll() {
+        try {
+          const res = await fetch("/api/steer");
+          if (res.ok) render(await res.json());
+        } catch {}
+      }
+      poll();
+      setInterval(poll, 3000);
+    </script>
+  </body>
+</html>

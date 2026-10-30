@@ -39,6 +39,8 @@ With no keys at all she still runs, using canned fortunes and the built-in macOS
 
 **Keeping her fresh:** every stock line has two or three wordings and never repeats back to back. Each fortune gets a lucky number she hasn't used recently and a random sign to read from (a tarot card, tea leaves, a raven, a cracked mirror and so on), with gentler options for kids. She's also told her recent greetings and fortunes, so she avoids reusing their openings, omens and tasks.
 
+**Steering her:** open **http://localhost:8000/steer.html** in another tab, or on your phone, to whisper her stage directions the guests can't hear. **Next guest** is used for one reading and then cleared, and the page shows which costume it went to: "This is Sam, it's her birthday," or "Tell him to ask Priya to dance." **All night** stays until you change it: "The costume contest is at 9, nudge people to enter." She weaves them into her greeting and fortune, and her safety rules and kid mode still come first. Notes live in memory only and are gone when the server restarts. They need Claude; the canned fortunes ignore them. To reach the page from a phone, start the server with `HOST=0.0.0.0` and open `http://<laptop's IP>:8000/steer.html` on the same Wi-Fi. Anyone on that Wi-Fi can open it, so keep the address to yourself.
+
 ### Try it without any hardware
 
 - Walk up to the laptop camera. She wakes when your face is close enough, and **[** / **]** adjust how close that is. **D** shows what the camera sees, with face boxes: yellow means seen, green means close enough to wake her.
@@ -135,6 +137,7 @@ WALKAWAY=1 .venv/bin/python scripts/smoke.py   # guest leaves mid-reading (WALKA
 
 Layout:
 - `server/oracle.py`: persona, safety rules, and Claude calls
+- `server/steer.py`, `static/steer.html`: the keeper's whispered stage directions
 - `server/voice.py`: ElevenLabs or `say`, plus the cache
 - `server/printer.py`: fortune cards
 - `static/js/puppet.js`: the automaton drawing, in screen and head modes

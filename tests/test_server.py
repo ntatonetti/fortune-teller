@@ -247,7 +247,7 @@ def test_question_and_payment_reach_the_prompt(monkeypatch):
 def test_secret_text_is_never_accepted_or_logged(monkeypatch):
     seen = {}
 
-    async def fake_fortune(image, audience, costume, recent, question="", paid_with=""):
+    async def fake_fortune(image, audience, costume, recent, question="", paid_with="", steer_note=""):
         seen.update(question=question, paid_with=paid_with)
         return __import__("server.fallback_fortunes", fromlist=["x"]).fortune("adult", costume)
 
@@ -372,3 +372,46 @@ def test_usb_ticket_is_plain_ascii_and_cut(monkeypatch):
     assert '"CROOKED" HAT' in text and "'boo'" in text
     assert not any(b >= 0x80 for b in out)  # no codepage-dependent bytes for the punctuation
     assert b"\x1dV" in out  # paper is cut (GS V)
+
+
+def test_steer_notes_reach_prompts_and_next_guest_is_used_once(monkeypatch):
+    from server import steer
+
+    seen = []
+
+    async def fake_ask(schema, effort, max_tokens, content, timeout):
+        seen.append(content[1]["text"])
+        if schema is oracle.FORTUNE_SCHEMA:
+            return {
+                "audience": "adult", "group_size": 1, "costume": "a pirate", "spoken": "Arr.",
+                "card_title": "T", "card_text": "C", "lucky_number": 7, "task": "Dance.", "gist": "g",
+            }
+        return {"audience": "adult", "group_size": 1, "costume": "a pirate", "greeting": "Ahoy."}
+
+    monkeypatch.setattr(oracle, "_ask", fake_ask)
+    monkeypatch.setattr(steer, "tonight", "")
+    monkeypatch.setattr(steer, "next_guest", "")
+    with TestClient(app_module.app) as client:
+        state = client.put("/api/steer", json={"tonight": "plug the contest", "next_guest": "this is Sam"}).json()
+        assert state["tonight"] == "plug the contest" and state["next_guest"] == "this is Sam"
+
+        client.post("/api/greet", json={"image": FAKE_JPEG})
+        client.post("/api/fortune", json={"image": FAKE_JPEG, "audience": "adult", "costume": "a pirate"})
+        assert all("plug the contest" in t and "this is Sam" in t for t in seen)
+
+        state = client.get("/api/steer").json()
+        assert state["next_guest"] == "" and state["used_for"] == "a pirate"
+        assert state["tonight"] == "plug the contest"
+
+        client.post("/api/fortune", json={"image": FAKE_JPEG, "audience": "adult", "costume": "a pirate"})
+        assert "this is Sam" not in seen[-1] and "plug the contest" in seen[-1]
+
+
+def test_steer_keeps_a_note_changed_mid_reading(monkeypatch):
+    from server import steer
+
+    monkeypatch.setattr(steer, "tonight", "")
+    monkeypatch.setattr(steer, "next_guest", "new note")
+    steer.consume("old note", "a witch")
+    assert steer.next_guest == "new note"
+    assert steer.prompt("") == ""
