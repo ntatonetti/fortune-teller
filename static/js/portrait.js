@@ -8,8 +8,8 @@ const DIR = "/img/mechanika/";
 // Where things are in the 1376 x 768 pictures. Her eyes and mouth are where the
 // face mesh finds them on base.png (iris centres, middle of the lips), the same
 // way the guest's are found, so the two line up.
-export const MARKS = { eyes: [{ x: 674, y: 189 }, { x: 746, y: 189 }], mouth: { x: 709, y: 264 } };
-export const BALL = { x: 418, y: 531, r: 95 };
+export const MARKS = { eyes: [{ x: 674, y: 188 }, { x: 745, y: 187 }], mouth: { x: 709, y: 264 } };
+export const BALL = { x: 700, y: 526, r: 89 };
 const FACE = { x: 708, y: 232, rx: 112, ry: 128 }; // forehead to dropped chin
 const EYES = { x: 708, y: 188, rx: 88, ry: 30 };
 
