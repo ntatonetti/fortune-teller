@@ -13,40 +13,69 @@ from server.memory import GuestLog
 from server.models import Fortune
 
 FAKE_JPEG = "data:image/jpeg;base64," + base64.b64encode(b"\xff\xd8" + b"x" * 400).decode()
+_REAL_ASYNC_CLIENT = httpx.AsyncClient  # captured once, so mocking twice in a test doesn't nest
+PIRATE = dict(
+    audience="adult", group_size=1, costume="a pirate", spoken="Arr... 7.", card_title="The Omen of the Tide",
+    card_text="Beware the tide.", lucky_number=7, task="Find a parrot.", gist="tide omen",
+)
 
 
-def test_endpoints_fall_back_without_claude():
+@pytest.fixture(autouse=True)
+def no_network(monkeypatch, tmp_path):
+    """No real Claude (calls return None unless a test fakes them) and a fake ElevenLabs."""
+    from server import config, voice
+
+    monkeypatch.setattr(oracle, "_CLIENT", None)
+    monkeypatch.setattr(config, "CACHE_DIR", tmp_path / "tts")
+    fake = lambda req: httpx.Response(200, content=b"ID3fake-mp3")  # noqa: E731
+    monkeypatch.setattr(voice.httpx, "AsyncClient", lambda **kw: _REAL_ASYNC_CLIENT(transport=httpx.MockTransport(fake), **kw))
+
+
+def test_endpoints_when_claude_is_down():
     with TestClient(app_module.app) as client:
         cfg = client.get("/api/config").json()
-        assert cfg["claude"] is False
-        assert cfg["voice"] == "macos-say"
         assert cfg["flickers"] == 3
         assert set(cfg["stock"]) >= {"invite_adult", "invite_child", "farewell_child"}
         assert all(v["url"] for variants in cfg["stock"].values() for v in variants)
         assert len(cfg["stock"]["invite_adult"]) >= 2  # several wordings per line
+        audio = client.get(cfg["stock"]["invite_adult"][0]["url"])
+        assert audio.status_code == 200 and audio.content[:3] == b"ID3"
 
-        g = client.post("/api/greet", json={"image": FAKE_JPEG}).json()
-        assert g["source"] == "fallback" and g["audience"] == "child"
-        assert client.get(g["audio"]).status_code == 200
+        # No canned stand-ins: the page handles these (no greeting, "the spirits are silent").
+        assert client.post("/api/greet", json={"image": FAKE_JPEG}).status_code == 503
+        assert client.post("/api/fortune", json={"image": FAKE_JPEG, "audience": "adult"}).status_code == 503
+        assert client.post("/api/asked", json={"question": "will I"}).status_code == 503
 
-        f = client.post("/api/fortune", json={"image": FAKE_JPEG, "audience": "adult", "costume": "a pirate"}).json()
-        assert f["source"] == "fallback" and f["audience"] == "adult"
-        assert str(f["lucky_number"]) in f["spoken"]
-        audio = client.get(f["audio"])
-        assert audio.status_code == 200 and audio.content[:4] == b"RIFF"
+        assert client.post("/api/print", json=PIRATE).json()["status"] == "console"
 
-        assert client.post("/api/print", json={k: v for k, v in f.items() if k != "audio"}).json()["status"] == "console"
+
+def test_wont_start_without_keys(monkeypatch):
+    monkeypatch.setattr(app_module.config, "ELEVENLABS_VOICE_ID", "")
+    with pytest.raises(RuntimeError, match="ELEVENLABS_VOICE_ID"):
+        with TestClient(app_module.app):
+            pass
+
+
+def test_asked_checks_with_a_quick_model(monkeypatch):
+    seen = {}
+
+    async def fake_ask(schema, effort, max_tokens, content, timeout, model=None, system=oracle.PERSONA):
+        seen.update(model=model, system=system, text=content[0]["text"])
+        return {"done": "puppy" in content[0]["text"]}
+
+    monkeypatch.setattr(oracle, "_ask", fake_ask)
+    with TestClient(app_module.app) as client:
+        assert client.post("/api/asked", json={"question": "will I um", "kid": True}).json() == {"done": False}
+        assert "A child is asking." in seen["text"] and "<heard>will I um</heard>" in seen["text"]
+        assert client.post("/api/asked", json={"question": "will I get a puppy"}).json() == {"done": True}
+    assert seen["model"] == "claude-haiku-5-5" and seen["system"] == oracle.ASKED_SYSTEM
+    assert "An adult is asking." in seen["text"]
 
 
 def test_bad_requests():
     with TestClient(app_module.app) as client:
         assert client.post("/api/greet", json={"image": "nope"}).status_code == 400
         assert client.get("/api/audio/..%2F..%2Fserver%2Fconfig.py").status_code == 404
-
-
-def test_unknown_audience_falls_back_to_child():
-    f = asyncio.run(oracle.fortune("x" * 200, "", "", []))
-    assert f.audience == "child"
 
 
 def test_child_seen_at_greeting_stays_child(monkeypatch):
@@ -59,7 +88,6 @@ def test_child_seen_at_greeting_stays_child(monkeypatch):
     monkeypatch.setattr(oracle, "_ask", fake_ask)
     f = asyncio.run(oracle.fortune("x" * 200, "child", "a tiny dragon", []))
     assert f.audience == "child"
-    assert f.source == "claude"
 
 
 def test_prompt_includes_child_note_and_memory(monkeypatch):
@@ -110,7 +138,7 @@ def test_ask_request_shape_and_parse(monkeypatch):
     monkeypatch.setattr(oracle, "_CLIENT", client)
     monkeypatch.setattr(oracle.config, "CLAUDE_MODEL", "claude-opus-5-5")
     g = asyncio.run(oracle.greet("x" * 200))
-    assert g.costume == "two ghosts" and g.source == "claude"
+    assert g.costume == "two ghosts"
     kw = msgs.kwargs
     assert kw["model"] == "claude-opus-5-5"
     assert kw["fallbacks"] == "default" and kw["betas"] == ["server-side-fallback-2026-07-01"]
@@ -128,11 +156,11 @@ def test_no_fallback_param_for_haiku(monkeypatch):
     assert "fallbacks" not in msgs.kwargs
 
 
-def test_refusal_uses_canned_line(monkeypatch):
+def test_refusal_gives_no_greeting(monkeypatch):
     resp = types.SimpleNamespace(stop_reason="refusal", stop_details=types.SimpleNamespace(category=None), content=[])
     client, _ = _fake_client(resp)
     monkeypatch.setattr(oracle, "_CLIENT", client)
-    assert asyncio.run(oracle.greet("x" * 200)).source == "fallback"
+    assert asyncio.run(oracle.greet("x" * 200)) is None
 
 
 def test_card_fits_paper():
@@ -211,8 +239,7 @@ def test_elevenlabs_rate_limit_is_retried_and_queued(monkeypatch):
             return httpx.Response(429, json={"detail": "too_many_concurrent_requests"})
         return httpx.Response(200, content=b"ID3fake-mp3")
 
-    real_client = httpx.AsyncClient
-    monkeypatch.setattr(voice.httpx, "AsyncClient", lambda **kw: real_client(transport=httpx.MockTransport(handler), **kw))
+    monkeypatch.setattr(voice.httpx, "AsyncClient", lambda **kw: _REAL_ASYNC_CLIENT(transport=httpx.MockTransport(handler), **kw))
     monkeypatch.setattr(voice, "RETRY_DELAYS_S", (0.01, 0.01))
     monkeypatch.setattr(voice, "_eleven_slots", asyncio.Semaphore(2))
 
@@ -250,7 +277,7 @@ def test_secret_text_is_never_accepted_or_logged(monkeypatch):
 
     async def fake_fortune(image, audience, costume, recent, question="", paid_with="", max_words=0):
         seen.update(question=question, paid_with=paid_with)
-        return __import__("server.fallback_fortunes", fromlist=["x"]).fortune("adult", costume)
+        return Fortune(**PIRATE)
 
     monkeypatch.setattr(app_module.oracle, "fortune", fake_fortune)
     with TestClient(app_module.app) as client:

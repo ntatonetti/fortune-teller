@@ -213,7 +213,22 @@ function waitForPayment(timeoutMs) {
   return promise;
 }
 
-// She asks for their question and listens. Resolves with the question ("" if none).
+// Last words that mean they're mid-sentence ("will I...", "um...", "and..."), not done.
+const TRAILING = new Set(
+  "um uh er erm hmm like and or but so because if the a an my your his her their our to of for with about will would should could can do does did is are am was what when where who why how which i i'm me going gonna wanna maybe then".split(" "),
+);
+
+// How long a pause ends their question: longer for kids, and longer still if
+// they've barely started or trailed off mid-sentence.
+function questionPause(text, kid) {
+  const words = text.toLowerCase().replace(/[^a-z' ]/g, " ").split(/\s+/).filter(Boolean);
+  const trailing = words.length < 3 || TRAILING.has(words.at(-1));
+  return (kid ? 3000 : 2200) + (trailing ? 2500 : 0);
+}
+
+// She asks for their question and listens, patiently: the clock stops while
+// they look away (asking a friend, say), and at each pause Claude judges
+// whether the question is finished. Resolves with the question ("" if none).
 async function askQuestion(kid) {
   if (!listening()) return "";
   state = "ask";
@@ -222,7 +237,14 @@ async function askQuestion(kid) {
   sound.cue();
   setPrompt("✦ speak your question ✦");
   puppet.set({ brow: 1, lidL: 1, lidR: 1 });
-  const question = await ears.listen({ maxMs: 14000, waitMs: 8000, onHeard: (t) => showHeard(t) });
+  const question = await ears.listen({
+    maxMs: 30000,
+    waitMs: kid ? 12000 : 10000,
+    silenceMs: (t) => questionPause(t, kid),
+    hold: () => seenThisSession && (!watcher.nearest || watcher.lookingAway),
+    confirm: (t) => api("/api/asked", { question: t, kid }).then((r) => r.done),
+    onHeard: (t) => showHeard(t),
+  });
   stillHere();
   setPrompt("");
   if (question) showHeard(question);
@@ -501,14 +523,13 @@ function drawDebug() {
   const n = watcher.nearest;
   $("debugText").textContent = [
     `state: ${state}`,
-    `face: ${n ? `w=${n.w.toFixed(3)} (near ≥ ${settings.near})` : "none"}`,
+    `face: ${n ? `w=${n.w.toFixed(3)} (near ≥ ${settings.near}) · turn=${(n.turn ?? 0).toFixed(2)}${watcher.lookingAway ? " AWAY" : ""}` : "none"}`,
     `audience: ${reading?.audience || "-"} ${settings.audience !== "auto" ? `(forced ${settings.audience})` : ""}`,
     `ears: ${!ears.supported ? "unsupported in this browser" : ears.failed ? `failed (${ears.failed})` : settings.listen ? (ears.listening ? "LISTENING" : "on") : "off"} · paid: ${reading?.paidWith || "-"}`,
     `question: ${reading?.question || "-"}`,
     `walk-away: ${inReading() ? `${((performance.now() - lastFaceAt) / 1000).toFixed(1)}s` : "-"} / ${settings.walkAwayS}s${inReading() && !seenThisSession ? " (face not seen yet: off)" : ""}`,
     `costume: ${reading?.costume || "-"}`,
-    `fortune source: ${reading?.fortune?.source || "-"}`,
-    `claude: ${server.claude ? "on" : "OFF (canned)"}${maxWords ? ` (brief: ${maxWords} words)` : ""} · voice: ${server.voice} · printer: ${server.printer}`,
+    `printer: ${server.printer}${maxWords ? ` · brief: ${maxWords} words` : ""}`,
     `button: ${settings.button ? "required" : "auto"} · glitch: ${Math.round(settings.glitchRate * 100)}% · guests: ${server.guests ?? "?"}`,
   ].join("\n");
 }
@@ -629,7 +650,7 @@ async function refreshServer() {
   try {
     server = await api("/api/config");
   } catch {
-    server = { stock: {}, claude: false, voice: "offline", printer: "?" };
+    server = { stock: {}, printer: "?" };
   }
   puppet.flickers = server.flickers ?? 3;
   document.title = server.name || "The Oracle";
@@ -638,8 +659,6 @@ async function refreshServer() {
   st.innerHTML = "";
   for (const [label, ok, detail] of [
     ["Server", !!server.name, server.name ? "running" : "not reachable"],
-    ["Claude", server.claude, server.claude ? "connected" : "no API key: canned fortunes"],
-    ["Voice", server.voice === "elevenlabs", server.voice === "elevenlabs" ? "ElevenLabs" : "macOS voice (fallback)"],
     ["Printer", server.printer === "usb", server.printer],
   ]) {
     const li = document.createElement("li");

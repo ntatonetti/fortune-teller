@@ -13,14 +13,13 @@ The body is deliberately mechanical: the head, eyes, and lids move on a choppy 1
 ```bash
 python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt
-./scripts/fetch_vendor.sh          # face-detection runtime, so the booth works offline
-cp .env.example .env               # then fill in keys (all optional)
+cp .env.example .env               # then fill in the Claude and ElevenLabs keys
 .venv/bin/python -m server
 ```
 
 Open **http://localhost:8000** in Chrome. Pick the camera, click **Awaken the Oracle**, and press **H** for the key list.
 
-With no keys at all she still runs, using canned fortunes and the built-in macOS "Grandma" voice. That's handy for testing and is also the automatic fallback if the party Wi-Fi drops.
+She needs the internet: Claude for every word she says about a guest, ElevenLabs for her voice, Chrome's speech recognition for her ears, and the face-detection runtime, which loads from a CDN. The server won't start without the keys. If a call fails mid-party she skips the greeting, or says "the spirits are silent" instead of a fortune.
 
 ### How a reading goes
 
@@ -29,7 +28,7 @@ With no keys at all she still runs, using canned fortunes and the built-in macOS
 3. **Payment:** "A pirate's gold coin, if you have one... drop it in and press the button. If your pockets are empty... whisper me a secret instead."
    - A button press counts as a coin.
    - Two or more spoken words count as a secret. The secret is never saved or sent anywhere, only the fact that one was told, and the screen shows it only as dots.
-4. **Question:** "Now... ask the fates your question." A bell rings, and she listens until they pause, up to 14 seconds. Pressing the button means "that's my question." If they stay silent, she answers "the question you hold in your heart."
+4. **Question:** "Now... ask the fates your question." A bell rings, and she listens patiently, because kids especially stop mid-sentence, say "um", or turn to ask a parent what to ask. A pause only counts once it's long enough: about 2 seconds for adults and 3 for kids, plus 2.5 more if they've said fewer than three words or stopped on a word like "and", "um" or "will". While the camera sees them turned away, or can't see their face at all, the clock stops. At each pause a quick Claude check (Haiku) decides whether they've actually finished asking. If not, she waits up to 6 more seconds for the rest. She gives up after 30 seconds in all. Pressing the button means "that's my question." If they stay silent, she answers "the question you hold in your heart."
 5. **Consult:** the gears spin and the ball swirls. Adults see her eyes roll back; kids see her peer into the ball. Meanwhile her face flickers three times (`FACE_FLICKERS` in `.env`) into the guest's own, caught by the camera, lined up eye to eye and mouth to mouth with hers, and toned like an old spirit photograph.
 6. **Fortune:** she answers their question, weaving in their costume, an omen, a lucky number, and a task for the party. The card prints with "You asked: ..." on it. Then she slumps back to sleep, and won't wake again until that person steps away.
 
@@ -43,7 +42,7 @@ With no keys at all she still runs, using canned fortunes and the built-in macOS
 
 ### Try it without any hardware
 
-- Walk up to the laptop camera. She wakes when your face is close enough, and **[** / **]** adjust how close that is. **D** shows what the camera sees, with face boxes: yellow means seen, green means close enough to wake her.
+- Walk up to the laptop camera. She wakes when your face is close enough, and **[** / **]** adjust how close that is. **D** shows what the camera sees, with face boxes: yellow means seen, green means close enough to wake her. It also shows how far the nearest head is turned; past 0.3 it reads AWAY, and while she's waiting for a question that stops her pause clock.
 - **Space** is the gold coin. **W** wakes her manually. Talk when she asks for a secret or a question; Chrome asks for mic permission once, when you click Awaken.
 - **A** forces adult or child mode, and **G** makes the next adult reading glitch.
 - To test the guest's side without sitting through her full readings, open **http://localhost:8000/?brief**. Her greeting and fortune are then capped at 20 words (`?brief=30` for 30). Her fixed lines and all the timings stay the same. The setting is never saved, so a plain page load is always the full reading.
@@ -51,7 +50,7 @@ With no keys at all she still runs, using canned fortunes and the built-in macOS
 
 ## Keys and voices
 
-**Claude:** create an API key at console.anthropic.com and set `ANTHROPIC_API_KEY`. The default model is `claude-opus-5-5` at low effort. If greetings feel slow, try `CLAUDE_MODEL=claude-haiku-5-5`. A reading is two calls (greeting and fortune), each with one camera frame, which comes to a few cents per guest on Opus.
+**Claude:** create an API key at console.anthropic.com and set `ANTHROPIC_API_KEY`. The default model is `claude-opus-5-5` at low effort. If greetings feel slow, try `CLAUDE_MODEL=claude-haiku-5-5`. A reading is two calls (greeting and fortune), each with one camera frame, which comes to a few cents per guest on Opus, plus a tiny Haiku call (no image) at each pause while they ask their question.
 
 **ElevenLabs:**
 1. Sign up at elevenlabs.io. Under Developers → API Keys, create a key and set it as `ELEVENLABS_API_KEY`.
@@ -129,7 +128,7 @@ Camera frames go to Claude for the reading and are never saved. Guests' question
 
 ```bash
 .venv/bin/python -m pytest -q        # server tests (no network, no keys needed)
-node --test tests/js/*.test.mjs      # projection-mapping math
+node --test tests/js/*.test.mjs      # projection-mapping math, sounds, and patient listening
 PLAYWRIGHT_BROWSERS_PATH=.venv/ms-playwright .venv/bin/playwright install chromium   # once
 .venv/bin/python scripts/smoke.py    # drives a full reading in headless Chrome, saves screenshots
 HEAD=1 .venv/bin/python scripts/smoke.py   # same in head mode, plus the alignment screen
@@ -139,7 +138,7 @@ WALKAWAY=1 .venv/bin/python scripts/smoke.py   # guest leaves mid-reading (WALKA
 Layout:
 - `server/oracle.py`: persona, safety rules, and Claude calls
 - `server/phrases.py`: her signature lines, for Claude to choose from
-- `server/voice.py`: ElevenLabs or `say`, plus the cache
+- `server/voice.py`: ElevenLabs, plus the cache
 - `server/printer.py`: fortune cards
 - `static/js/puppet.js`: the automaton drawing, in screen and head modes
 - `static/js/headmap.js`, `static/js/homography.js`: head-mode surfaces, corner-pin warp and alignment
