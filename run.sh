@@ -1,0 +1,4 @@
+python3 -m venv .venv
+.venv/bin/pip install -r requirements.txt
+cp .env.example .env               # then fill in the Claude and ElevenLabs keys
+.venv/bin/python -m server
