@@ -827,27 +827,31 @@ function control({ name, value, choices, range, kind }) {
   return [input];
 }
 
-// Her voice: one of the voices listed, and a way to hear it.
+// Her voice: picked with "Use this voice" on the list below; this shows its name.
 function voiceChoice(name, value) {
-  const sel = el("select", { name, className: "voice" });
-  sel.dataset.was = value;
-  sel.dataset.want = value;
-  sel.addEventListener("change", () => (sel.dataset.want = sel.value));
-  const hear = el("button", { type: "button", className: "small", textContent: "Hear" });
-  hear.addEventListener("click", () => hearVoice(sel.value, hear));
-  return [sel, hear];
+  const input = el("input", { type: "hidden", name, value, className: "voice" });
+  input.dataset.was = value;
+  input.dataset.want = value;
+  return [input, el("span", { className: "voiceNow" })];
 }
 
 // Her voice comes from the list (which always has the one she has); remove it
-// and she takes the first voice left.
-function fillVoiceChoice() {
-  const sel = $("settingsList").querySelector("select.voice");
-  if (!sel) return;
+// and she takes the first voice left. The row she uses is marked.
+function fillVoiceChoice(want) {
+  const input = $("settingsList").querySelector("input.voice");
+  if (!input) return;
+  if (want) input.dataset.want = want;
   const voices = readVoices();
-  if (!voices.some((v) => v.id === sel.dataset.want)) sel.dataset.want = voices[0]?.id || sel.dataset.was;
-  sel.innerHTML = "";
-  for (const v of voices) sel.append(el("option", { value: v.id, textContent: v.name }));
-  sel.value = sel.dataset.want;
+  if (!voices.some((v) => v.id === input.dataset.want)) input.dataset.want = voices[0]?.id || input.dataset.was;
+  input.value = input.dataset.want;
+  input.parentElement.querySelector(".voiceNow").textContent = voices.find((v) => v.id === input.value)?.name || input.value;
+  for (const r of $("settingsList").querySelectorAll(".voices .voiceRow")) {
+    const using = r.querySelector(".vid").textContent === input.value;
+    r.classList.toggle("using", using);
+    const use = r.querySelector(".use");
+    use.disabled = using;
+    use.textContent = using ? "In use" : "Use this voice";
+  }
 }
 
 // VOICES: a row per voice (name, id, Hear, Remove) and a row to add one. A
@@ -872,11 +876,13 @@ function voiceList(name, value) {
     const i = el("code", { textContent: id, className: "vid" });
     const hear = el("button", { type: "button", className: "small", textContent: "Hear" });
     hear.addEventListener("click", () => hearVoice(id, hear));
+    const use = el("button", { type: "button", className: "small use", textContent: "Use this voice" });
+    use.addEventListener("click", () => fillVoiceChoice(id));
     const drop = el("button", { type: "button", className: "small", textContent: "Remove" });
     drop.addEventListener("click", () => {
       if (list.children.length > 1) r.remove(), sync(); // she needs one voice
     });
-    r.append(n, i, hear, drop);
+    r.append(n, i, hear, use, drop);
     list.append(r);
   };
   value.forEach(addRow);

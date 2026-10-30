@@ -9,7 +9,6 @@
 
 import { DEFAULT_GEOM } from "./headmap.js";
 import { Portrait, MARKS, BALL } from "./portrait.js";
-import { IDX, OUTLINE, HER, TRIS } from "./mechanika-mesh.js";
 
 const W = 1600;
 const H = 900;
@@ -34,100 +33,6 @@ function affine3([s0, s1, s2], [d0, d1, d2]) {
   const c = (qx * ux - px * vx) / det;
   const d = (qy * ux - py * vx) / det;
   return [a, b, c, d, d0.x - a * s0.x - c * s0.y, d0.y - b * s0.x - d * s0.y];
-}
-
-// The guest's face (a camera crop and its face mesh) cut into the triangles of
-// hers, each stretched onto her photograph: their eyes, nose and mouth all land on
-// hers, at the cost of a little skew. Colour-graded to her photo's light so it
-// sits in her picture, and covering her face out to its outline with only a
-// thin soft edge. Returned with where it sits on her photo.
-function warpOntoHer(crop, mesh, photo) {
-  const xs = HER.map((p) => p[0]);
-  const ys = HER.map((p) => p[1]);
-  const x0 = Math.floor(Math.min(...xs)) - 2;
-  const y0 = Math.floor(Math.min(...ys)) - 2;
-  const cv = document.createElement("canvas");
-  cv.width = Math.ceil(Math.max(...xs)) + 2 - x0;
-  cv.height = Math.ceil(Math.max(...ys)) + 2 - y0;
-  const c = cv.getContext("2d", { willReadFrequently: true });
-  const her = HER.map(([x, y]) => ({ x: x - x0, y: y - y0 }));
-  const theirs = IDX.map((i) => mesh[i]);
-  for (const tri of TRIS) {
-    const d = tri.map((i) => her[i]);
-    const m = affine3(tri.map((i) => theirs[i]), d);
-    if (!m) continue;
-    // clipped a pixel past its edges, so no seams show between triangles
-    const cx = (d[0].x + d[1].x + d[2].x) / 3;
-    const cy = (d[0].y + d[1].y + d[2].y) / 3;
-    c.save();
-    c.beginPath();
-    for (const p of d) {
-      const l = Math.hypot(p.x - cx, p.y - cy) || 1;
-      c.lineTo(p.x + (p.x - cx) / l, p.y + (p.y - cy) / l);
-    }
-    c.clip();
-    c.transform(...m);
-    c.drawImage(crop, 0, 0);
-    c.restore();
-  }
-  matchColour(c, photo, x0, y0);
-  // a thin soft edge at her face's outline
-  const rim = her.slice(0, OUTLINE);
-  const mx = rim.reduce((a, p) => a + p.x, 0) / rim.length;
-  const my = rim.reduce((a, p) => a + p.y, 0) / rim.length;
-  c.globalCompositeOperation = "destination-in";
-  c.filter = "blur(4px)";
-  c.beginPath();
-  for (const p of rim) c.lineTo(mx + (p.x - mx) * 0.985, my + (p.y - my) * 0.985);
-  c.fill();
-  return { canvas: cv, x: x0, y: y0 };
-}
-
-// Grade the warped face to her photo under it: brightness and contrast matched,
-// and its colour pulled to her skin's, so a webcam's light and cast take on hers.
-function matchColour(c, photo, x0, y0) {
-  const { width: w, height: h } = c.canvas;
-  const under = document.createElement("canvas");
-  under.width = w;
-  under.height = h;
-  const u = under.getContext("2d", { willReadFrequently: true });
-  u.drawImage(photo, -x0, -y0);
-  const theirs = c.getImageData(0, 0, w, h);
-  const hers = u.getImageData(0, 0, w, h).data;
-  const px = theirs.data;
-  // brightness and two colour axes (YCbCr)
-  const ycc = (d, i) => [
-    0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2],
-    -0.169 * d[i] - 0.331 * d[i + 1] + 0.5 * d[i + 2],
-    0.5 * d[i] - 0.419 * d[i + 1] - 0.081 * d[i + 2],
-  ];
-  const sum = new Array(12).fill(0); // theirs, theirs², hers, hers² per axis
-  let n = 0;
-  for (let i = 0; i < px.length; i += 4) {
-    if (px[i + 3] < 250) continue;
-    n++;
-    const [a, b] = [ycc(px, i), ycc(hers, i)];
-    for (let ax = 0; ax < 3; ax++) {
-      sum[ax] += a[ax];
-      sum[3 + ax] += a[ax] * a[ax];
-      sum[6 + ax] += b[ax];
-      sum[9 + ax] += b[ax] * b[ax];
-    }
-  }
-  if (n < 100) return;
-  const grade = [0, 1, 2].map((ax) => {
-    const [mt, mh] = [sum[ax] / n, sum[6 + ax] / n];
-    const sdT = Math.sqrt(Math.max(1, sum[3 + ax] / n - mt * mt));
-    const sdH = Math.sqrt(Math.max(1, sum[9 + ax] / n - mh * mh));
-    return [mt, Math.min(2, sdH / sdT), mh];
-  });
-  for (let i = 0; i < px.length; i += 4) {
-    const [y, cb, cr] = ycc(px, i).map((v, ax) => (v - grade[ax][0]) * grade[ax][1] + grade[ax][2]);
-    px[i] = y + 1.402 * cr;
-    px[i + 1] = y - 0.344 * cb - 0.714 * cr;
-    px[i + 2] = y + 1.772 * cb;
-  }
-  c.putImageData(theirs, 0, 0);
 }
 
 export class Puppet {
@@ -156,7 +61,7 @@ export class Puppet {
     this._lastServo = 0;
     this._last = performance.now();
     // Her timings in seconds, replaced by the server's (.env) once they arrive.
-    this.timing = { dim: 0.9, blink_min: 2.5, blink_max: 7.5, blink: 0.17, glimpse_min: 0.33, glimpse_max: 0.58, glimpse_gap_min: 0.42, glimpse_gap_max: 0.83, look_side: 0.35, glance_min: 5, glance_max: 14, glance: 0.9 };
+    this.timing = { dim: 0.9, blink_min: 2.5, blink_max: 7.5, blink: 0.17, glimpse_min: 0.33, glimpse_max: 0.58, glimpse_gap_min: 0.42, glimpse_gap_max: 0.83, look_side: 0.35, mouth_open: 2, glance_min: 5, glance_max: 14, glance: 0.9 };
     this._blinkAt = performance.now() + 3000;
     this._blinkTicks = 0;
     this._jitter = { x: 0, y: 0, r: 0 };
@@ -219,7 +124,7 @@ export class Puppet {
       c.drawImage(crop, 0, 0, toned.width, toned.height);
     }
     this.guestFace = toned;
-    // Feathered all round, for laying over her photograph.
+    // Feathered all round, for her crystal ball.
     const soft = document.createElement("canvas");
     soft.width = toned.width;
     soft.height = toned.height;
@@ -234,7 +139,6 @@ export class Puppet {
     s.fillStyle = g;
     s.fillRect(-soft.width / 2, -soft.width / 2, soft.width, soft.width);
     this._guestSoft = soft;
-    this._guestWarp = crop.mesh && this.portrait ? warpOntoHer(crop, crop.mesh, this.portrait.base) : null;
   }
 
   // The transform that puts the guest's eyes on her eyes and their mouth on her
@@ -308,9 +212,10 @@ export class Puppet {
       }
       this._glanceAt = now + between(this.timing.glance_min, this.timing.glance_max) * 1000;
     }
-    // The photograph's mouth: shut, then three openings, set on the servo clock.
+    // The photograph's mouth: shut, then three openings, set on the servo clock,
+    // no wider than MOUTH_OPEN.
     const v = this.jawLevel;
-    this._mouth = v < 0.08 ? 0 : v < 0.2 ? 1 : v < 0.4 ? 2 : 3;
+    this._mouth = Math.min(v < 0.08 ? 0 : v < 0.2 ? 1 : v < 0.4 ? 2 : 3, this.timing.mouth_open ?? 2);
     if (this.shake > 0) {
       this.shake--;
       this._jitter = { x: (Math.random() - 0.5) * 14, y: (Math.random() - 0.5) * 8 };
@@ -365,7 +270,7 @@ export class Puppet {
   // Her photograph as it is this tick. Asleep she is the same, only dimmed.
   _portraitNow(time) {
     const p = this.pose;
-    if (this.mode === "head" && this.preview) return this.portrait.compose(Math.floor(time) % 2 ? 3 : 0);
+    if (this.mode === "head" && this.preview) return this.portrait.compose(Math.floor(time) % 2 ? this.timing.mouth_open ?? 2 : 0);
     return this.portrait.compose(this._mouth, this._eyesNow(), p.brow > 0.5);
   }
 
@@ -396,23 +301,24 @@ export class Puppet {
     this._dimmed(1 - this._power());
     const b = at(BALL);
     this._ballGlow(b.x, b.y, BALL.r * k, time);
-    const g = this._guestWarp;
-    if (this._guestShown && g) {
-      // the guest's face warped over hers
-      c.globalAlpha = this._guestShown;
-      c.drawImage(g.canvas, ox + g.x * k, oy + g.y * k, g.canvas.width * k, g.canvas.height * k);
-      c.globalAlpha = 1;
-    } else if (this._guestShown && this._guestSoft) {
-      // no face mesh: just their eyes and mouth on hers
-      const m = affine3(this._ovalMarks(), [...MARKS.eyes.map(at), at(MARKS.mouth)]);
-      if (m) {
-        c.save();
-        c.transform(...m);
-        c.globalAlpha = this._guestShown;
-        c.drawImage(this._guestSoft, -100, -128, 200, 256);
-        c.restore();
-      }
-    }
+    c.save();
+    c.translate(b.x, b.y);
+    this._ballFace(c, BALL.r * k);
+    c.restore();
+  }
+
+  // The guest's face flickering up in the crystal ball (centre 0,0, radius r).
+  _ballFace(c, r) {
+    if (!this._guestShown || !this._guestSoft) return;
+    const s = (1.3 * r) / 200; // their face oval about two thirds of the ball across
+    const f = this._guestSoft;
+    c.save();
+    c.beginPath();
+    c.arc(0, 0, r - 3, 0, Math.PI * 2);
+    c.clip();
+    c.globalAlpha = this._guestShown;
+    c.drawImage(f, (-f.width * s) / 2, (-f.height * s) / 2, f.width * s, f.height * s);
+    c.restore();
   }
 
   // Mist swirling in her real crystal ball, brighter as she consults.
@@ -1044,17 +950,7 @@ export class Puppet {
         c.save();
         c.transform(...affine3([...MARKS.eyes, MARKS.mouth], this._ovalMarks()));
         c.drawImage(this._portraitNow(time), 0, 0);
-        const g = this._guestWarp;
-        if (this._guestShown && g) {
-          c.globalAlpha = this._guestShown;
-          c.drawImage(g.canvas, g.x, g.y);
-        }
         c.restore();
-        if (this._guestShown && this._guestSoft && !g) {
-          c.globalAlpha = this._guestShown;
-          c.drawImage(this._guestSoft, -100, -128, 200, 256);
-          c.globalAlpha = 1;
-        }
       } else {
         const savedLids = [p.lidL, p.lidR];
         const savedJaw = this.jaw;
@@ -1096,6 +992,7 @@ export class Puppet {
         c.fill();
       }
       c.filter = "none";
+      this._ballFace(c, r);
       c.globalCompositeOperation = "destination-in";
       const g = c.createRadialGradient(0, 0, r * 0.6, 0, 0, r);
       g.addColorStop(0, "rgba(0,0,0,1)");

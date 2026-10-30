@@ -86,7 +86,7 @@ ASKED_TIMEOUT_S = _setting("ASKED_TIMEOUT_S", 4, "gives up on that judgement aft
 # Voice
 _section = "Her voice"
 ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY", "")
-ELEVENLABS_VOICE_ID = _setting("ELEVENLABS_VOICE_ID", "", "the voice she speaks in", str, kind="voice")
+ELEVENLABS_VOICE_ID = _setting("ELEVENLABS_VOICE_ID", "", "the voice she speaks in: press Use this voice on one below", str, kind="voice")
 VOICES = _setting("VOICES", "", "the ElevenLabs voices to choose from: add one with its voice ID from elevenlabs.io", voices, kind="voices")
 ELEVENLABS_MODEL = _setting(
     "ELEVENLABS_MODEL", "eleven_flash_v2_5", "the ElevenLabs model that voices her (flash is quickest)", str,
@@ -110,9 +110,9 @@ MEMORY_RECALL = _setting("MEMORY_RECALL", 15, "how many earlier guests she recal
 MEMORY_MAX_AGE_H = _setting("MEMORY_MAX_AGE_H", 12, "guests older than this many hours are forgotten", span=[1, 48, 1])
 
 _section = "The guest's face in hers"
-FACE_FLICKERS = _setting("FACE_FLICKERS", 3, "times the guest's face flickers over hers while she consults (0 = never)", int, span=[0, 10, 1])
-FLICKER_OPACITY = _setting("FLICKER_OPACITY", 1, "how solid their face is over hers: 1 = their face only, 0.5 = half each", span=[0, 1, 0.05])
-KID_FLICKER = _setting("KID_FLICKER", False, "kids see their own face in hers too", bool)
+FACE_FLICKERS = _setting("FACE_FLICKERS", 3, "times the guest's face flickers up in her crystal ball while she consults (0 = never)", int, span=[0, 10, 1])
+FLICKER_OPACITY = _setting("FLICKER_OPACITY", 1, "how solid their face is in the ball: 1 = solid, 0.5 = half mist", span=[0, 1, 0.05])
+KID_FLICKER = _setting("KID_FLICKER", False, "kids see their own face in the ball too", bool)
 
 # Every pause, wait and transition in a reading, in seconds unless noted.
 # Sent to the browser as {"wake_hold": 0.7, ...} (the env name, lowercase,
@@ -144,6 +144,7 @@ _TIMINGS = {
     "WAKE_DAZED_S": (1.6, "how long she looks around, dazed, after a startled waking", (0, 5, 0.1)),
     # her looks
     "LOOK_SIDE": (0.35, "how far off-centre her gaze must be (0-1) before her eyes turn to look that way", (0.05, 1, 0.05)),
+    "MOUTH_OPEN": (2, "her widest mouth: 1 parted, 2 dropped to her teeth, 3 the full drop (runs off the foam head)", (1, 3, 1)),
     "GLANCE_MIN_S": (5, "awake, shortest gap between her glances away (left, right, up or down)", (1, 60, 1)),
     "GLANCE_MAX_S": (14, "longest gap between glances away", (1, 90, 1)),
     "GLANCE_S": (0.9, "how long a glance away holds (0 = she never glances away)", (0, 3, 0.1)),

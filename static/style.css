@@ -421,6 +421,20 @@ body.mirror #show {
   margin-top: 4px;
 }
 
+/* The voice she uses: its button reads "In use", in gold. */
+#settingsList .voiceRow.using button.use {
+  opacity: 1;
+  cursor: default;
+  color: #1a0508;
+  background: var(--gold);
+  border-color: var(--gold);
+}
+
+#settingsList .voiceNow {
+  font: 14px ui-monospace, Menlo, monospace;
+  color: var(--gold);
+}
+
 #settingsList input:focus-visible {
   outline: 2px solid var(--gold);
   outline-offset: 1px;

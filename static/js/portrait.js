@@ -49,7 +49,10 @@ export class Portrait {
     const names = ["base", "mouth-1", "mouth-2", "mouth-3", "brows-up", ...EYE_FRAMES];
     const imgs = await Promise.all(names.map(loadImage));
     if (imgs.some((i) => !i)) return null;
-    return new Portrait(Object.fromEntries(names.map((n, i) => [n, imgs[i]])));
+    // forehead.png (scripts/clean_forehead.py): skin over the pendant and the hair
+    // above her temples, for the foam head; optional
+    const forehead = await loadImage("forehead");
+    return new Portrait({ ...Object.fromEntries(names.map((n, i) => [n, imgs[i]])), forehead });
   }
 
   constructor(imgs) {
@@ -59,6 +62,7 @@ export class Portrait {
     this.mouths = [null, ...["mouth-1", "mouth-2", "mouth-3"].map((n) => patch(imgs[n], FACE))];
     this.brows = patch(imgs["brows-up"], BROWS);
     this.eyes = Object.fromEntries(EYE_FRAMES.map((n) => [n, patch(imgs[n], EYES)]));
+    this.forehead = imgs.forehead;
     this.canvas = document.createElement("canvas");
     this.canvas.width = this.width;
     this.canvas.height = this.height;
@@ -76,6 +80,7 @@ export class Portrait {
     if (this.mouths[mouth]) c.drawImage(this.mouths[mouth], 0, 0);
     if (brows) c.drawImage(this.brows, 0, 0);
     if (eyes) c.drawImage(this.eyes[eyes], 0, 0);
+    if (this.forehead) c.drawImage(this.forehead, 0, 0);
     return this.canvas;
   }
 }
