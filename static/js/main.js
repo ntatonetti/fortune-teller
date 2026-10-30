@@ -11,6 +11,7 @@ import { Watcher } from "./watcher.js";
 const $ = (id) => document.getElementById(id);
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+const between = (lo, hi) => lo + Math.random() * (hi - lo);
 
 const DEFAULTS = {
   cameraId: "",
@@ -37,6 +38,9 @@ const watcher = new Watcher($("camera"));
 const ears = new Ears();
 let sound = null;
 let server = { stock: {} };
+// Every pause, wait and transition, in seconds, from .env via /api/config.
+let T = {};
+const ms = (name) => T[name] * 1000;
 
 let state = "boot";
 let reading = null; // {audience, kid, costume, fortune}
@@ -123,19 +127,20 @@ async function say(url, text, { glitch = false } = {}) {
   }
   if (!ctrl) {
     // No audio: let the text sit there for a natural reading time.
-    subtitle.ctrl = { progress: ((t0, d) => () => clamp((performance.now() - t0) / d, 0, 1))(performance.now(), 400 * subtitle.words.length) };
-    await wait(400 * subtitle.words.length + 300);
+    const d = ms("no_voice_word") * subtitle.words.length;
+    subtitle.ctrl = { progress: ((t0) => () => clamp((performance.now() - t0) / d, 0, 1))(performance.now()) };
+    await wait(d + 300);
   } else {
     speaking = ctrl;
     subtitle.ctrl = ctrl;
     if (glitch) {
-      const at = ctrl.duration * (0.3 + Math.random() * 0.25) * 1000;
+      const at = ctrl.duration * between(T.glitch_at_min, T.glitch_at_max) * 1000;
       setTimeout(async () => {
         if (speaking !== ctrl) return;
         ctrl.pause();
-        puppet.glitch(16);
-        sound.grind(1.1, 0.6);
-        await wait(1300);
+        puppet.glitch(T.glitch);
+        sound.grind(T.glitch - 0.2, 0.6);
+        await wait(ms("glitch"));
         ctrl.resume();
       }, at);
     }
@@ -145,7 +150,7 @@ async function say(url, text, { glitch = false } = {}) {
   subtitle.ctrl = null;
   setTimeout(() => {
     if (sayCount === myTurn) $("subtitle").classList.remove("show");
-  }, 700);
+  }, ms("subtitle_linger"));
 }
 
 // Pick one of a stock line's wordings, never the same one twice in a row.
@@ -200,7 +205,7 @@ function waitForPayment(timeoutMs) {
   promise.listenForSecret = async () => {
     while (listening() && tokenWaiter) {
       const t0 = performance.now();
-      const heard = await ears.listen({ maxMs: 12000, waitMs: 12000, onHeard: (t) => showHeard(t, { secret: true }) });
+      const heard = await ears.listen({ maxMs: ms("secret_listen"), waitMs: ms("secret_listen"), onHeard: (t) => showHeard(t, { secret: true }) });
       if (ears.failed) toast(`Mic unavailable (${ears.failed}): coins only. Press / to type for guests.`);
       if (performance.now() - t0 < 1000) await wait(1000); // don't spin if recognition keeps bailing
       if (wordCount(heard) >= 2) {
@@ -223,7 +228,7 @@ const TRAILING = new Set(
 function questionPause(text, kid) {
   const words = text.toLowerCase().replace(/[^a-z' ]/g, " ").split(/\s+/).filter(Boolean);
   const trailing = words.length < 3 || TRAILING.has(words.at(-1));
-  return (kid ? 3000 : 2200) + (trailing ? 2500 : 0);
+  return ms(kid ? "question_pause_kid" : "question_pause") + (trailing ? ms("question_trailing") : 0);
 }
 
 // She asks for their question and listens, patiently: the clock stops while
@@ -238,8 +243,9 @@ async function askQuestion(kid) {
   setPrompt("✦ speak your question ✦");
   puppet.set({ brow: 1, lidL: 1, lidR: 1 });
   const question = await ears.listen({
-    maxMs: 30000,
-    waitMs: kid ? 12000 : 10000,
+    maxMs: ms("question_max"),
+    waitMs: ms(kid ? "question_start_kid" : "question_start"),
+    moreMs: ms("question_more"),
     silenceMs: (t) => questionPause(t, kid),
     hold: () => seenThisSession && (!watcher.nearest || watcher.lookingAway),
     confirm: (t) => api("/api/asked", { question: t, kid }).then((r) => r.done),
@@ -248,7 +254,7 @@ async function askQuestion(kid) {
   stillHere();
   setPrompt("");
   if (question) showHeard(question);
-  await wait(600);
+  await wait(ms("heard_show"));
   clearHeard();
   await sayStock(question ? (kid ? "heard_child" : "heard_adult") : kid ? "no_question_child" : "no_question_adult");
   stillHere();
@@ -291,8 +297,8 @@ async function shutDown(walked) {
   puppet.flicker = false;
   clearHeard();
   setPrompt("");
-  puppet.glitch(6);
-  sound.grind(0.8, 0.4);
+  puppet.glitch(T.shutdown_glitch);
+  sound.grind(T.shutdown_glitch + 0.3, 0.4);
   walkedAway = false; // let the grumble play
   if (walked) await sayStock(reading?.kid ? "walkaway_child" : "walkaway_adult");
   await sleepAgain();
@@ -313,7 +319,7 @@ async function runReading({ paid = false } = {}) {
   puppet.setGuestFace(watcher.faceCrop());
   const [greet] = await Promise.all([
     shot ? api("/api/greet", { image: shot, max_words: maxWords }).catch((e) => (console.warn(e), null)) : null,
-    wait(1900),
+    wait(ms("wake_pause")),
   ]);
   stillHere();
 
@@ -335,7 +341,7 @@ async function runReading({ paid = false } = {}) {
   if (!paid) {
     state = "invite";
     setPrompt(listening() ? "✦ a gold coin… or a secret ✦" : "✦ insert your gold coin ✦");
-    const payment = waitForPayment(40000);
+    const payment = waitForPayment(ms("pay_timeout"));
     payment.then((v) => v && speaking?.stop()); // paying mid-sentence cuts her off
     await sayStock(kid ? "invite_child" : "invite_adult");
     if (!settings.button && !listening()) tokenWaiter?.();
@@ -353,7 +359,7 @@ async function runReading({ paid = false } = {}) {
     await sayStock(kid ? "secret_child" : "secret_adult");
   } else {
     sound.coin();
-    await wait(800);
+    await wait(ms("coin_pause"));
   }
   stillHere();
   reading.question = await askQuestion(kid);
@@ -390,7 +396,7 @@ async function consultAndSpeak() {
   await sayStock(kid ? "consult_child" : "consult_adult");
   stillHere();
   const f = await fortuneP;
-  const left = 3500 - (performance.now() - started);
+  const left = ms("consult_min") - (performance.now() - started);
   if (left > 0) await wait(left);
   stillHere();
 
@@ -417,7 +423,7 @@ async function consultAndSpeak() {
   state = "dispense";
   sound.ratchet(1.6);
   api("/api/print", f).catch((e) => console.warn("print failed", e));
-  await wait(1300);
+  await wait(ms("ticket_pause"));
   stillHere();
   await sayStock(kidNow ? "farewell_child" : "farewell_adult");
   await sleepAgain();
@@ -433,7 +439,7 @@ async function sleepAgain() {
   puppet.gearTarget = 0.15;
   puppet.ballTarget = 0.15;
   sound.ball(0); // asleep: the music box plays alone
-  await wait(1600);
+  await wait(ms("fall_asleep"));
   state = "sleep";
   needsAbsence = true;
   farewellAt = performance.now();
@@ -457,12 +463,12 @@ function lookAt(face, now) {
 function sleepLogic(now) {
   const face = watcher.nearest;
   if (face) lastFaceAt = now;
-  if (needsAbsence && ((!face && now - lastFaceAt > 2500) || now - farewellAt > 30000)) needsAbsence = false;
+  if (needsAbsence && ((!face && now - lastFaceAt > ms("rewake_gone")) || now - farewellAt > ms("rewake_anyway"))) needsAbsence = false;
 
   const near = face && face.w >= settings.near;
   if (near && !needsAbsence) {
     nearSince ||= now;
-    if (now - nearSince > 700) {
+    if (now - nearSince > ms("wake_hold")) {
       nearSince = 0;
       session();
       return;
@@ -472,11 +478,11 @@ function sleepLogic(now) {
   // Someone lingering at a distance: one eye cracks open and follows them.
   if (face && !near) {
     farSince ||= now;
-    if (now - farSince > 2500) {
+    if (now - farSince > ms("peek_after")) {
       puppet.set({ lidR: 0.7, lidL: 0 });
       lookAt(face, now);
     }
-    if (now - farSince > 7000 && now - lastBeckon > 60000 && !needsAbsence) {
+    if (now - farSince > ms("beckon_after") && now - lastBeckon > ms("beckon_every") && !needsAbsence) {
       lastBeckon = now;
       sound.musicBox(false);
       sayStock("beckon").then(() => state === "sleep" && settings.music && sound.musicBox(true));
@@ -488,10 +494,10 @@ function sleepLogic(now) {
 
   // Twitch in her sleep now and then.
   if (now > nextTwitch) {
-    nextTwitch = now + 9000 + Math.random() * 16000;
+    nextTwitch = now + between(ms("twitch_min"), ms("twitch_max"));
     sound.creak(0.18);
     puppet.set({ tilt: (Math.random() - 0.5) * 10 });
-    setTimeout(() => state === "sleep" && puppet.set({ tilt: 0 }), 900);
+    setTimeout(() => state === "sleep" && puppet.set({ tilt: 0 }), ms("twitch_hold"));
   }
 }
 
@@ -653,6 +659,8 @@ async function refreshServer() {
     server = { stock: {}, printer: "?" };
   }
   puppet.flickers = server.flickers ?? 3;
+  puppet.guestAlpha = server.flicker_opacity ?? 0.8;
+  if (server.timings) puppet.timing = T = server.timings;
   document.title = server.name || "The Oracle";
   $("title").textContent = server.name || "The Oracle";
   const st = $("status");

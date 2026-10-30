@@ -49,6 +49,56 @@ MEMORY_MAX_AGE_H = float(os.getenv("MEMORY_MAX_AGE_H", "12"))  # older guests ar
 
 # Glimpses of the guest's face over hers while she consults; 0 turns it off
 FACE_FLICKERS = int(os.getenv("FACE_FLICKERS", "3"))
+FLICKER_OPACITY = float(os.getenv("FLICKER_OPACITY", "0.8"))  # 1 = their face only, 0.5 = half each
+
+# Every pause, wait and transition in a reading, in seconds unless noted; each
+# is listed with what it does in .env.example. Sent to the browser as
+# {"wake_hold": 0.7, ...} (the env name, lowercase, without _S).
+_TIMINGS = {
+    # sleep and waking
+    "WAKE_HOLD_S": 0.7,
+    "WAKE_PAUSE_S": 1.9,
+    "HEAD_MOVE_S": 0.9,
+    "FALL_ASLEEP_S": 1.6,
+    "REWAKE_GONE_S": 2.5,
+    "REWAKE_ANYWAY_S": 30,
+    "PEEK_AFTER_S": 2.5,
+    "BECKON_AFTER_S": 7,
+    "BECKON_EVERY_S": 60,
+    "TWITCH_MIN_S": 9,
+    "TWITCH_MAX_S": 25,
+    "TWITCH_HOLD_S": 0.9,
+    "BLINK_MIN_S": 2.5,
+    "BLINK_MAX_S": 7.5,
+    "BLINK_S": 0.17,
+    # paying
+    "PAY_TIMEOUT_S": 40,
+    "SECRET_LISTEN_S": 12,
+    "COIN_PAUSE_S": 0.8,
+    # their question
+    "QUESTION_MAX_S": 30,
+    "QUESTION_START_S": 10,
+    "QUESTION_START_KID_S": 12,
+    "QUESTION_PAUSE_S": 2.2,
+    "QUESTION_PAUSE_KID_S": 3,
+    "QUESTION_TRAILING_S": 2.5,
+    "QUESTION_MORE_S": 6,
+    "HEARD_SHOW_S": 0.6,
+    # consulting, the fortune, the ticket
+    "CONSULT_MIN_S": 3.5,
+    "GLIMPSE_MIN_S": 0.33,
+    "GLIMPSE_MAX_S": 0.58,
+    "GLIMPSE_GAP_MIN_S": 0.42,
+    "GLIMPSE_GAP_MAX_S": 0.83,
+    "GLITCH_S": 1.3,
+    "GLITCH_AT_MIN": 0.3,  # fraction of the way through the fortune
+    "GLITCH_AT_MAX": 0.55,
+    "SHUTDOWN_GLITCH_S": 0.5,
+    "TICKET_PAUSE_S": 1.3,
+    "SUBTITLE_LINGER_S": 0.7,
+    "NO_VOICE_WORD_S": 0.4,
+}
+TIMINGS = {k.removesuffix("_S").lower(): float(os.getenv(k, str(v))) for k, v in _TIMINGS.items()}
 
 CACHE_DIR = ROOT / "data" / "tts_cache"
 SFX_DIR = ROOT / "static" / "sfx"  # committed; regenerate with scripts/make_sfx.py

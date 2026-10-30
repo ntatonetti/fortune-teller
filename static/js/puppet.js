@@ -13,10 +13,13 @@ import { Portrait, MARKS, BALL } from "./portrait.js";
 const W = 1600;
 const H = 900;
 const SERVO_HZ = 12;
-const GUEST_ALPHA = 0.5; // the guest's face over hers: half see-through, a double exposure
 
 const PORCELAIN = ["#f6ede0", "#e6d6c2", "#bfa88e"];
 const BRASS = ["#f3d27a", "#b8862f", "#5e3d12"];
+
+// Servo ticks in a span of seconds (at least one); between two spans, at random.
+const ticks = (s) => Math.max(1, Math.round(s * SERVO_HZ));
+const between = (lo, hi) => lo + Math.random() * (hi - lo);
 
 // The 2D affine [a, b, c, d, e, f] that carries three points onto three others.
 function affine3([s0, s1, s2], [d0, d1, d2]) {
@@ -57,6 +60,8 @@ export class Puppet {
     this._gearAngle = 0;
     this._lastServo = 0;
     this._last = performance.now();
+    // Her timings in seconds, replaced by the server's (.env) once they arrive.
+    this.timing = { head_move: 0.9, blink_min: 2.5, blink_max: 7.5, blink: 0.17, glimpse_min: 0.33, glimpse_max: 0.58, glimpse_gap_min: 0.42, glimpse_gap_max: 0.83 };
     this._blinkAt = performance.now() + 3000;
     this._blinkTicks = 0;
     this._jitter = { x: 0, y: 0, r: 0 };
@@ -65,7 +70,8 @@ export class Puppet {
     this.preview = false; // alignment: hold her awake with the mouth cycling
     this.guestFace = null; // the guest's face, toned like a spirit photograph
     this.flicker = false; // while consulting: her face and the guest's trade places
-    this._guestShown = 0; // 0 her; GUEST_ALPHA while the guest's face shows over hers
+    this._guestShown = 0; // 0 her; guestAlpha while the guest's face shows over hers
+    this.guestAlpha = 0.8; // how solid their face is over hers (FLICKER_OPACITY in .env)
     this._flickerHold = 0;
     this.flickers = 3; // glimpses of the guest per consult (FACE_FLICKERS in .env)
     this._flickers = 0; // glimpses so far this consult
@@ -97,8 +103,8 @@ export class Puppet {
     this.jaw = level < 0.08 ? 0 : level < 0.25 ? 0.5 : 1;
   }
 
-  glitch(ticks = 14) {
-    this.shake = ticks;
+  glitch(seconds) {
+    this.shake = ticks(seconds);
   }
 
   // Tone a camera crop once, so it reads as sepia porcelain rather than video.
@@ -181,7 +187,7 @@ export class Puppet {
     };
     step("tilt", 2.5);
     step("turn", 0.12);
-    step("slump", 0.09);
+    step("slump", 1 / ticks(this.timing.head_move));
     step("lidL", 0.34);
     step("lidR", 0.34);
     step("brow", 0.25);
@@ -193,8 +199,8 @@ export class Puppet {
     // Blink now and then while awake (lids snap shut for two ticks).
     if (this._blinkTicks > 0) this._blinkTicks--;
     else if (now > this._blinkAt && t.lidL > 0.5 && t.lidR > 0.5) {
-      this._blinkTicks = 2;
-      this._blinkAt = now + 2500 + Math.random() * 5000;
+      this._blinkTicks = ticks(this.timing.blink);
+      this._blinkAt = now + between(this.timing.blink_min, this.timing.blink_max) * 1000;
     }
     // The photograph's mouth: shut, then three openings, set on the servo clock.
     const v = this.jawLevel;
@@ -215,15 +221,15 @@ export class Puppet {
     } else if (--this._flickerHold <= 0) {
       if (this._guestShown) {
         this._guestShown = 0;
-        this._flickerHold = 5 + Math.floor(Math.random() * 6);
+        this._flickerHold = ticks(between(this.timing.glimpse_gap_min, this.timing.glimpse_gap_max));
       } else if (this._flickers < this.flickers) {
         this._flickers++;
-        this._guestShown = GUEST_ALPHA;
-        this._flickerHold = 4 + Math.floor(Math.random() * 4);
+        this._guestShown = this.guestAlpha;
+        this._flickerHold = ticks(between(this.timing.glimpse_min, this.timing.glimpse_max));
       }
     }
     // A seizure shakes the guest's face loose again, stuttering on and off.
-    if (this.shake > 0 && this.guestFace) this._guestShown = Math.random() < 0.5 ? GUEST_ALPHA : 0;
+    if (this.shake > 0 && this.guestFace) this._guestShown = Math.random() < 0.5 ? this.guestAlpha : 0;
   }
 
   // ---------- drawing ----------
