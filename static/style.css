@@ -272,6 +272,7 @@ body.mirror #show {
   display: grid;
   grid-template-columns: 13.5em 15.5em 1fr;
   gap: 12px;
+  font-size: 15px; /* labels and the voice list's div alike, so columns line up */
   align-items: baseline;
   margin: 0;
   padding: 3px 0;
@@ -450,6 +451,15 @@ body.mirror #show {
   }
   #settingsList .about {
     grid-column: 1 / -1;
+  }
+  #settingsList .row:has(.voices) {
+    grid-template-columns: 1fr;
+  }
+  #settingsList .row:has(.voices) .value {
+    white-space: normal;
+  }
+  #settingsList .row:has(.voices) .about {
+    grid-column: 1;
   }
 }
 
