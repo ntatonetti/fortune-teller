@@ -67,4 +67,26 @@ export class Watcher {
     this._snap.getContext("2d").drawImage(v, 0, 0, this._snap.width, this._snap.height);
     return this._snap.toDataURL("image/jpeg", 0.82);
   }
+
+  // The nearest face cut out of the current frame, mirrored like a looking glass,
+  // in her face's proportions (100:128). Stays in memory; null if no face is seen.
+  faceCrop(width = 240) {
+    const v = this.video;
+    const f = this.nearest;
+    if (!f || !v.videoWidth) return null;
+    const vw = v.videoWidth;
+    const vh = v.videoHeight;
+    const sw = Math.min(vw, f.w * vw * 1.6);
+    const sh = Math.min(vh, sw * 1.28);
+    const sx = Math.max(0, Math.min(vw - sw, f.x * vw - sw / 2));
+    const sy = Math.max(0, Math.min(vh - sh, f.y * vh - sh * 0.46)); // a little forehead
+    const crop = document.createElement("canvas");
+    crop.width = width;
+    crop.height = Math.round(width * 1.28);
+    const c = crop.getContext("2d");
+    c.translate(crop.width, 0);
+    c.scale(-1, 1);
+    c.drawImage(v, sx, sy, sw, sh, 0, 0, crop.width, crop.height);
+    return crop;
+  }
 }

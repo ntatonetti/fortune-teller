@@ -48,6 +48,10 @@ export class Puppet {
     this.mode = "screen";
     this.headmap = null; // set for head mode
     this.preview = false; // alignment: hold her awake with the mouth cycling
+    this.guestFace = null; // the guest's face, toned like a spirit photograph
+    this.flicker = false; // while consulting: her face and the guest's trade places
+    this._guestShown = 0; // 0 her, 1 the guest, 0.5 a double exposure
+    this._flickerHold = 0;
     this.resize();
     window.addEventListener("resize", () => this.resize());
   }
@@ -73,6 +77,18 @@ export class Puppet {
 
   glitch(ticks = 14) {
     this.shake = ticks;
+  }
+
+  // Tone a camera crop once, so it reads as sepia porcelain rather than video.
+  setGuestFace(crop) {
+    if (!crop) return;
+    const toned = document.createElement("canvas");
+    toned.width = crop.width;
+    toned.height = crop.height;
+    const c = toned.getContext("2d");
+    c.filter = "grayscale(1) sepia(0.85) contrast(1.45) brightness(1.08)";
+    c.drawImage(crop, 0, 0);
+    this.guestFace = toned;
   }
 
   // Called every animation frame.
@@ -127,6 +143,19 @@ export class Puppet {
       p.eyeY = Math.random() * 2 - 1;
     } else {
       this._jitter = { x: 0, y: 0, r: 0 };
+    }
+    // The flicker runs on the servo clock too: uneven holds, now and then a
+    // single tick where both faces show at once.
+    if (!this.flicker || !this.guestFace) {
+      this._guestShown = 0;
+    } else if (--this._flickerHold <= 0) {
+      if (this._guestShown !== 0.5 && Math.random() < 0.15) {
+        this._guestShown = 0.5;
+        this._flickerHold = 1;
+      } else {
+        this._guestShown = this._guestShown === 1 ? 0 : 1;
+        this._flickerHold = 2 + Math.floor(Math.random() * 5);
+      }
     }
   }
 
@@ -314,6 +343,7 @@ export class Puppet {
     this._earrings(faceY);
     this._turbanBack(faceY);
     this._face(faceY);
+    this._guest(faceY);
     this._turbanFront(faceY);
     c.restore();
   }
@@ -504,6 +534,28 @@ export class Puppet {
     c.stroke();
   }
 
+  // The guest's face over hers, in the same oval, fading into her porcelain rim.
+  _guest(fy) {
+    if (!this._guestShown || !this.guestFace) return;
+    const c = this.ctx;
+    const rx = 100;
+    const ry = 128;
+    c.save();
+    c.globalAlpha = this._guestShown;
+    c.beginPath();
+    c.ellipse(0, fy, rx, ry, 0, 0, Math.PI * 2);
+    c.clip();
+    c.drawImage(this.guestFace, -rx, fy - ry, rx * 2, ry * 2);
+    c.translate(0, fy);
+    c.scale(1, ry / rx);
+    const rim = c.createRadialGradient(0, 0, rx * 0.55, 0, 0, rx);
+    rim.addColorStop(0, "rgba(191,168,142,0)");
+    rim.addColorStop(1, PORCELAIN[2]);
+    c.fillStyle = rim;
+    c.fillRect(-rx, -rx, rx * 2, rx * 2);
+    c.restore();
+  }
+
   _eyes(ey) {
     const c = this.ctx;
     const p = this.pose;
@@ -691,6 +743,7 @@ export class Puppet {
         this.jaw = Math.floor(time) % 2; // open/shut each second to line up the lips
       }
       this._face(0, { nose: false });
+      this._guest(0);
       [p.lidL, p.lidR] = savedLids;
       this.jaw = savedJaw;
       // Feather the edge so no hard outline spills past the foam.

@@ -262,6 +262,7 @@ async function shutDown(walked) {
   ears.cancel();
   speaking?.stop();
   sound.whir(false);
+  puppet.flicker = false;
   clearHeard();
   setPrompt("");
   puppet.glitch(6);
@@ -283,6 +284,7 @@ async function runReading({ paid = false } = {}) {
   sound.ball(0.45);
 
   const shot = watcher.snapshot();
+  puppet.setGuestFace(watcher.faceCrop());
   const [greet] = await Promise.all([
     shot ? api("/api/greet", { image: shot }).catch((e) => (console.warn(e), null)) : null,
     wait(1900),
@@ -343,6 +345,9 @@ async function consultAndSpeak() {
   sound.ball(1);
   // Adults get the eyes rolled up into the head; kids see her gaze into the ball.
   puppet.set(kid ? { eyeX: 0, eyeY: 1, lidL: 0.6, lidR: 0.6 } : { eyeX: 0, eyeY: -1, lidL: 0.35, lidR: 0.35, tilt: -6 });
+  // Her face and the guest's flicker back and forth while the spirits answer.
+  puppet.setGuestFace(watcher.faceCrop());
+  puppet.flicker = true;
 
   const shot = watcher.snapshot();
   const started = performance.now();
@@ -363,6 +368,7 @@ async function consultAndSpeak() {
   stillHere();
 
   sound.whir(false);
+  puppet.flicker = false;
   puppet.gearTarget = 0.6;
   puppet.ballTarget = 0.55;
   sound.ball(0.55);
@@ -394,6 +400,8 @@ async function sleepAgain() {
   state = "farewell";
   sound.clock(false);
   sound.creak();
+  puppet.flicker = false;
+  puppet.guestFace = null; // forget their face
   puppet.set({ slump: 1, lidL: 0, lidR: 0, brow: 0, tilt: 0, turn: 0, eyeX: 0, eyeY: 0 });
   puppet.gearTarget = 0.15;
   puppet.ballTarget = 0.15;

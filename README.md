@@ -30,7 +30,7 @@ With no keys at all she still runs, using canned fortunes and the built-in macOS
    - A button press counts as a coin.
    - Two or more spoken words count as a secret. The secret is never saved or sent anywhere, only the fact that one was told, and the screen shows it only as dots.
 4. **Question:** "Now... ask the fates your question." A bell rings, and she listens until they pause, up to 14 seconds. Pressing the button means "that's my question." If they stay silent, she answers "the question you hold in your heart."
-5. **Consult:** the gears spin and the ball swirls. Adults see her eyes roll back; kids see her peer into the ball.
+5. **Consult:** the gears spin and the ball swirls. Adults see her eyes roll back; kids see her peer into the ball. Meanwhile her face flickers back and forth with the guest's own, caught by the camera and toned like an old spirit photograph.
 6. **Fortune:** she answers their question, weaving in their costume, an omen, a lucky number, and a task for the party. The card prints with "You asked: ..." on it. Then she slumps back to sleep, and won't wake again until that person steps away.
 
 **Walking away:** if every face disappears from the camera for 8 seconds at any point in a reading, she stops mid-sentence, grumbles ("Hmph. Gone without a word..."), and goes back to sleep. If they leave during the fortune, no ticket prints. This only applies once the camera has actually seen the guest, so a dark booth where face detection struggles never cuts a real reading short. Pressing the button or speaking also counts as "still here". **J / K** adjust the 8 seconds, and **D** shows the countdown.
@@ -122,7 +122,7 @@ In head mode the marquee and subtitles are off, because the projector should onl
 
 ## Privacy
 
-Camera frames go to Claude for the reading and are never saved. Guests' questions go to Claude so she can answer them, and are printed on their card, but they're not stored. Whispered secrets never leave the browser at all. The only thing kept is a one-line costume description per guest in `data/guests.json` (for example "a witch with a crooked broom"), so she can reference earlier guests. To wipe it, press **Esc** for the setup screen and click **Forget everyone**; do this right before the party. You can also run `curl -X DELETE localhost:8000/api/guests` or delete the file. Entries older than 12 hours are forgotten automatically, which you can change with `MEMORY_MAX_AGE_H` in `.env`, so test runs from earlier in the week won't show up. A sign that says "THE ORACLE SEES YOU" is both fun and fair warning.
+Camera frames go to Claude for the reading and are never saved. Guests' questions go to Claude so she can answer them, and are printed on their card, but they're not stored. Whispered secrets never leave the browser at all, and neither does the picture of the guest's face that flickers over hers; it's forgotten when she goes back to sleep. The only thing kept is a one-line costume description per guest in `data/guests.json` (for example "a witch with a crooked broom"), so she can reference earlier guests. To wipe it, press **Esc** for the setup screen and click **Forget everyone**; do this right before the party. You can also run `curl -X DELETE localhost:8000/api/guests` or delete the file. Entries older than 12 hours are forgotten automatically, which you can change with `MEMORY_MAX_AGE_H` in `.env`, so test runs from earlier in the week won't show up. A sign that says "THE ORACLE SEES YOU" is both fun and fair warning.
 
 ## Development
 
