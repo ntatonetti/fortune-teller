@@ -50,8 +50,9 @@ export class Puppet {
     this.preview = false; // alignment: hold her awake with the mouth cycling
     this.guestFace = null; // the guest's face, toned like a spirit photograph
     this.flicker = false; // while consulting: her face and the guest's trade places
-    this._guestShown = 0; // 0 her, 1 the guest, 0.5 a double exposure
+    this._guestShown = 0; // 0 her, 1 the guest
     this._flickerHold = 0;
+    this._flickers = 0; // glimpses of the guest so far this consult
     this.resize();
     window.addEventListener("resize", () => this.resize());
   }
@@ -83,12 +84,36 @@ export class Puppet {
   setGuestFace(crop) {
     if (!crop) return;
     const toned = document.createElement("canvas");
-    toned.width = crop.width;
-    toned.height = crop.height;
+    toned.width = 240; // her face oval, 200 x 256
+    toned.height = 307;
     const c = toned.getContext("2d");
     c.filter = "grayscale(1) sepia(0.85) contrast(1.45) brightness(1.08)";
-    c.drawImage(crop, 0, 0);
+    const m = crop.marks && this._lineUp(crop.marks, toned.width, toned.height);
+    if (m) {
+      c.setTransform(...m);
+      c.drawImage(crop, 0, 0);
+    } else {
+      c.drawImage(crop, 0, 0, toned.width, toned.height);
+    }
     this.guestFace = toned;
+  }
+
+  // The transform that puts the guest's eyes on her eyes and their mouth on her
+  // jaw seam (three points fix it exactly), in the toned canvas's pixels.
+  _lineUp({ eyes, mouth }, w, h) {
+    const g = this.geom;
+    const at = (x, y) => ({ x: ((x + 100) * w) / 200, y: ((y + 128) * h) / 256 });
+    const [s0, s1, s2] = [eyes[0], eyes[1], mouth];
+    const [d0, d1, d2] = [at(-40 * g.eyeSpread, -22 + g.eyeY), at(40 * g.eyeSpread, -22 + g.eyeY), at(0, 62 + g.mouthY)];
+    const [ux, uy, vx, vy] = [s1.x - s0.x, s1.y - s0.y, s2.x - s0.x, s2.y - s0.y];
+    const det = ux * vy - vx * uy;
+    if (Math.abs(det) < 1) return null;
+    const [px, py, qx, qy] = [d1.x - d0.x, d1.y - d0.y, d2.x - d0.x, d2.y - d0.y];
+    const a = (px * vy - qx * uy) / det;
+    const b = (py * vy - qy * uy) / det;
+    const c = (qx * ux - px * vx) / det;
+    const d = (qy * ux - py * vx) / det;
+    return [a, b, c, d, d0.x - a * s0.x - c * s0.y, d0.y - b * s0.x - d * s0.y];
   }
 
   // Called every animation frame.
@@ -144,17 +169,19 @@ export class Puppet {
     } else {
       this._jitter = { x: 0, y: 0, r: 0 };
     }
-    // The flicker runs on the servo clock too: uneven holds, now and then a
-    // single tick where both faces show at once.
+    // The flicker runs on the servo clock too: three uneven glimpses of the
+    // guest, then she is herself again.
     if (!this.flicker || !this.guestFace) {
       this._guestShown = 0;
+      this._flickers = 0;
     } else if (--this._flickerHold <= 0) {
-      if (this._guestShown !== 0.5 && Math.random() < 0.15) {
-        this._guestShown = 0.5;
-        this._flickerHold = 1;
-      } else {
-        this._guestShown = this._guestShown === 1 ? 0 : 1;
-        this._flickerHold = 2 + Math.floor(Math.random() * 5);
+      if (this._guestShown) {
+        this._guestShown = 0;
+        this._flickerHold = 5 + Math.floor(Math.random() * 6);
+      } else if (this._flickers < 3) {
+        this._flickers++;
+        this._guestShown = 1;
+        this._flickerHold = 4 + Math.floor(Math.random() * 4);
       }
     }
   }

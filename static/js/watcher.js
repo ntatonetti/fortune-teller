@@ -52,7 +52,9 @@ export class Watcher {
     const vh = v.videoHeight;
     this.faces = res.detections.map((d) => {
       const b = d.boundingBox;
-      return { x: (b.originX + b.width / 2) / vw, y: (b.originY + b.height / 2) / vh, w: b.width / vw, h: b.height / vh };
+      // keypoints come normalized: right eye, left eye, nose, mouth, ears; keep eyes and mouth
+      const kp = d.keypoints?.length >= 4 ? [d.keypoints[0], d.keypoints[1], d.keypoints[3]] : null;
+      return { x: (b.originX + b.width / 2) / vw, y: (b.originY + b.height / 2) / vh, w: b.width / vw, h: b.height / vh, kp };
     });
     this.nearest = this.faces.reduce((best, f) => (!best || f.w > best.w ? f : best), null);
   }
@@ -68,15 +70,32 @@ export class Watcher {
     return this._snap.toDataURL("image/jpeg", 0.82);
   }
 
-  // The nearest face cut out of the current frame, mirrored like a looking glass,
-  // in her face's proportions (100:128). Framed tight, chin to hairline, so it fills
-  // her whole face with no background. Stays in memory; null if no face is seen.
+  // The nearest face cut out of the current frame, mirrored like a looking glass.
+  // With keypoints: a loose square with crop.marks (eyes left-to-right, mouth) in crop
+  // pixels, for the puppet to line up with hers. Without: framed tight, chin to
+  // hairline, in her face's proportions (100:128). Stays in memory; null if no face.
   faceCrop(width = 240) {
     const v = this.video;
     const f = this.nearest;
     if (!f || !v.videoWidth) return null;
     const vw = v.videoWidth;
     const vh = v.videoHeight;
+    if (f.kp) {
+      const side = Math.min(vw, vh, f.w * vw * 2.4);
+      const sx = Math.max(0, Math.min(vw - side, f.x * vw - side / 2));
+      const sy = Math.max(0, Math.min(vh - side, f.y * vh - side / 2));
+      const k = Math.min(1, 480 / side);
+      const crop = document.createElement("canvas");
+      crop.width = crop.height = Math.round(side * k);
+      const c = crop.getContext("2d");
+      c.translate(crop.width, 0);
+      c.scale(-1, 1);
+      c.drawImage(v, sx, sy, side, side, 0, 0, crop.width, crop.height);
+      const at = (p) => ({ x: crop.width - (p.x * vw - sx) * k, y: (p.y * vh - sy) * k });
+      const [e1, e2, mouth] = f.kp.map(at);
+      crop.marks = { eyes: e1.x < e2.x ? [e1, e2] : [e2, e1], mouth };
+      return crop;
+    }
     const boxH = (f.h || (f.w * vw) / vh) * vh; // detector box: about brows to chin
     const sh = Math.min(vh, boxH * 1.2);
     const sw = Math.min(vw, sh / 1.28);
