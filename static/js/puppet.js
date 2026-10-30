@@ -1056,6 +1056,15 @@ export class Puppet {
     const p = this.pose;
     const power = this._power();
 
+    const bg = hm.surfaces.bg;
+    if (hm.bg.on || hm.aligning) {
+      // her room on the backdrop, dimmer than her so the head still stands out;
+      // switched off, just its frame while aligning
+      this._onSurface(bg, (c) => {
+        if (this.portrait && hm.bg.on) c.drawImage(this._portraitNow(time), 0, 0, bg.w, bg.h);
+      }, power * hm.bg.level);
+    }
+
     const face = hm.surfaces.face;
     this._onSurface(face, (c) => {
       c.translate(face.w / 2 + this._jitter.x * 0.3, face.h * 0.54 + this._jitter.y * 0.3);
@@ -1143,8 +1152,11 @@ export class Puppet {
     draw(c);
     c.restore();
     if (power < 1) {
+      // only over what's drawn, so the clear edges stay clear over the background
+      c.globalCompositeOperation = "source-atop";
       c.fillStyle = `rgba(0,0,0,${1 - power})`;
       c.fillRect(0, 0, surface.w, surface.h);
+      c.globalCompositeOperation = "source-over";
     }
     if (this.headmap.aligning) this._guides(surface);
     this.ctx = prev;
@@ -1159,7 +1171,7 @@ export class Puppet {
     c.strokeRect(1.5, 1.5, surface.w - 3, surface.h - 3);
     c.fillStyle = c.strokeStyle;
     c.font = "bold 16px ui-monospace, Menlo, monospace";
-    c.fillText(surface.label, 10, 24);
+    c.fillText(surface === hm.surfaces.bg && !hm.bg.on ? `${surface.label} (off: B shows her room)` : surface.label, 10, 24);
     if (surface === hm.surfaces.ball) {
       // Line this circle up with the outline of the globe.
       c.beginPath();
