@@ -534,25 +534,48 @@ export class Puppet {
     c.stroke();
   }
 
-  // The guest's face over hers, in the same oval, fading into her porcelain rim.
+  // The guest's face over all of hers, cut on the same marionette lines as _face:
+  // their chin rides down with her jaw, so no porcelain shows.
   _guest(fy) {
     if (!this._guestShown || !this.guestFace) return;
     const c = this.ctx;
     const rx = 100;
     const ry = 128;
+    const mouthY = fy + 62 + this.geom.mouthY;
+    const jawW = 36;
+    const drop = this.jaw * 20;
+    const paint = () => {
+      c.beginPath();
+      c.ellipse(0, fy, rx, ry, 0, 0, Math.PI * 2);
+      c.clip();
+      c.drawImage(this.guestFace, -rx, fy - ry, rx * 2, ry * 2);
+      // only the very edge softens into her porcelain rim
+      c.translate(0, fy);
+      c.scale(1, ry / rx);
+      const rim = c.createRadialGradient(0, 0, rx * 0.9, 0, 0, rx);
+      rim.addColorStop(0, "rgba(191,168,142,0)");
+      rim.addColorStop(1, PORCELAIN[2]);
+      c.fillStyle = rim;
+      c.fillRect(-rx, -rx, rx * 2, rx * 2);
+    };
     c.save();
     c.globalAlpha = this._guestShown;
+    // upper face, around the jaw slot
+    c.save();
     c.beginPath();
-    c.ellipse(0, fy, rx, ry, 0, 0, Math.PI * 2);
+    c.rect(-200, fy - 200, 400, 400);
+    c.rect(jawW, mouthY, -jawW * 2, 200);
+    c.clip("evenodd");
+    paint();
+    c.restore();
+    // jaw piece, dropped with hers
+    c.save();
+    c.translate(0, drop);
+    c.beginPath();
+    c.rect(-jawW, mouthY, jawW * 2, 200);
     c.clip();
-    c.drawImage(this.guestFace, -rx, fy - ry, rx * 2, ry * 2);
-    c.translate(0, fy);
-    c.scale(1, ry / rx);
-    const rim = c.createRadialGradient(0, 0, rx * 0.55, 0, 0, rx);
-    rim.addColorStop(0, "rgba(191,168,142,0)");
-    rim.addColorStop(1, PORCELAIN[2]);
-    c.fillStyle = rim;
-    c.fillRect(-rx, -rx, rx * 2, rx * 2);
+    paint();
+    c.restore();
     c.restore();
   }
 

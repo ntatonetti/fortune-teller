@@ -69,17 +69,19 @@ export class Watcher {
   }
 
   // The nearest face cut out of the current frame, mirrored like a looking glass,
-  // in her face's proportions (100:128). Stays in memory; null if no face is seen.
+  // in her face's proportions (100:128). Framed tight, chin to hairline, so it fills
+  // her whole face with no background. Stays in memory; null if no face is seen.
   faceCrop(width = 240) {
     const v = this.video;
     const f = this.nearest;
     if (!f || !v.videoWidth) return null;
     const vw = v.videoWidth;
     const vh = v.videoHeight;
-    const sw = Math.min(vw, f.w * vw * 1.6);
-    const sh = Math.min(vh, sw * 1.28);
+    const boxH = (f.h || (f.w * vw) / vh) * vh; // detector box: about brows to chin
+    const sh = Math.min(vh, boxH * 1.2);
+    const sw = Math.min(vw, sh / 1.28);
     const sx = Math.max(0, Math.min(vw - sw, f.x * vw - sw / 2));
-    const sy = Math.max(0, Math.min(vh - sh, f.y * vh - sh * 0.46)); // a little forehead
+    const sy = Math.max(0, Math.min(vh - sh, f.y * vh + boxH * 0.55 - sh)); // chin at the bottom of her oval
     const crop = document.createElement("canvas");
     crop.width = width;
     crop.height = Math.round(width * 1.28);
