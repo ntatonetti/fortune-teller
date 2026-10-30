@@ -1,5 +1,7 @@
 // Head mode surfaces: the face and the crystal ball are each drawn on their own
 // canvas and corner-pinned onto the real objects (a foam head, a frosted globe).
+// Her room (the background of her photograph) can go on a third one, behind them,
+// pinned onto the backdrop; it's off until switched on in alignment mode.
 // Alignment mode lets you drag corners with the mouse or nudge with keys.
 
 import { cornerPinMatrix, cssMatrix } from "./homography.js";
@@ -7,7 +9,9 @@ import { cornerPinMatrix, cssMatrix } from "./homography.js";
 const STORE = "oracle-headmap";
 
 // Logical size of each surface canvas (CSS px before warping).
+// First is drawn first, so the background sits under the face and ball.
 export const SURFACES = {
+  bg: { w: 688, h: 384, label: "BACKGROUND" }, // half her 1376 x 768 photograph
   face: { w: 400, h: 520, label: "FACE" },
   ball: { w: 360, h: 360, label: "BALL" },
 };
@@ -19,6 +23,17 @@ function defaultCorners(name) {
   const vw = window.innerWidth;
   const vh = window.innerHeight;
   const { w, h } = SURFACES[name];
+  if (name === "bg") {
+    // fill the screen, as her photograph does on the sheet
+    const k = Math.max(vw / w, vh / h);
+    const [x, y] = [(vw - w * k) / 2, (vh - h * k) / 2];
+    return [
+      [x, y],
+      [x + w * k, y],
+      [x + w * k, y + h * k],
+      [x, y + h * k],
+    ];
+  }
   const s = name === "face" ? (vh * 0.5) / h : (vh * 0.28) / h;
   const cx = vw / 2;
   const cy = name === "face" ? vh * 0.36 : vh * 0.78;
@@ -48,6 +63,7 @@ export class HeadMap {
       this.surfaces[name] = { ...spec, canvas, ctx, corners: defaultCorners(name) };
     }
     this.geom = { ...DEFAULT_GEOM };
+    this.bg = { on: false, level: 0.5 }; // her room behind the head, and how bright
     this.aligning = false;
     this.selected = "face";
     this.corner = 0; // 0 = whole surface, 1..4 = one corner
@@ -65,13 +81,14 @@ export class HeadMap {
         if (saved[name]?.length === 4) this.surfaces[name].corners = saved[name];
       }
       Object.assign(this.geom, saved.geom || {});
+      Object.assign(this.bg, saved.bgShow || {});
     } catch {
       /* fall back to defaults */
     }
   }
 
   save() {
-    const out = { geom: this.geom };
+    const out = { geom: this.geom, bgShow: this.bg };
     for (const [name, s] of Object.entries(this.surfaces)) out[name] = s.corners;
     localStorage.setItem(STORE, JSON.stringify(out));
   }
@@ -81,6 +98,7 @@ export class HeadMap {
   }
 
   apply() {
+    this.surfaces.bg.canvas.hidden = !this.bg.on;
     for (const s of Object.values(this.surfaces)) {
       const m = cornerPinMatrix(s.w, s.h, s.corners);
       if (m) s.canvas.style.transform = cssMatrix(m);
@@ -93,7 +111,6 @@ export class HeadMap {
   setAligning(on) {
     this.aligning = on;
     document.body.classList.toggle("aligning", on);
-    this._handles.forEach((h) => (h.hidden = !on));
     $("alignHelp").hidden = !on;
     this._placeHandles();
     this._status();
@@ -122,6 +139,7 @@ export class HeadMap {
     for (const el of this._handles || []) {
       const s = this.surfaces[el.dataset.surface];
       const i = +el.dataset.index;
+      el.hidden = !this.aligning || (el.dataset.surface === "bg" && !this.bg.on);
       const [x, y] = i === 4 ? centroid(s.corners) : s.corners[i];
       el.style.left = `${this._screenX(x)}px`;
       el.style.top = `${y}px`;
@@ -178,6 +196,12 @@ export class HeadMap {
     this.apply();
   }
 
+  _background(on, delta = 0) {
+    this.bg.on = on;
+    this.bg.level = Math.round(Math.min(1, Math.max(0.05, this.bg.level + delta)) * 100) / 100;
+    if (!on && this.selected === "bg") this.selected = "face";
+  }
+
   _geom(key, delta, lo, hi) {
     this.geom[key] = Math.round(Math.min(hi, Math.max(lo, this.geom[key] + delta)) * 100) / 100;
     this._status();
@@ -190,9 +214,13 @@ export class HeadMap {
     const k = e.key;
     const actions = {
       Tab: () => {
-        this.selected = this.selected === "face" ? "ball" : "face";
+        const order = this.bg.on ? ["face", "ball", "bg"] : ["face", "ball"];
+        this.selected = order[(order.indexOf(this.selected) + 1) % order.length];
         this.corner = 0;
       },
+      b: () => this._background(!this.bg.on),
+      "[": () => this._background(true, -0.05),
+      "]": () => this._background(true, 0.05),
       0: () => (this.corner = 0),
       1: () => (this.corner = 1),
       2: () => (this.corner = 2),
@@ -241,7 +269,8 @@ export class HeadMap {
     const g = this.geom;
     el.textContent =
       `editing: ${SURFACES[this.selected].label} · ${what}\n` +
-      `eyes: spread ${g.eyeSpread} · height ${g.eyeY} · size ${g.eyeSize}   mouth: ${g.mouthY}`;
+      `eyes: spread ${g.eyeSpread} · height ${g.eyeY} · size ${g.eyeSize}   mouth: ${g.mouthY}\n` +
+      `background: ${this.bg.on ? `on · brightness ${this.bg.level}` : "off"}`;
   }
 }
 

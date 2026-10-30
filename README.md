@@ -107,7 +107,8 @@ This is the Haunted Mansion "Madame Leota" trick. Instead of a picture on a shee
 2. Drag the four corner dots to warp the face until it sits on the foam. This corrects the projector's angle.
 3. Press **P** for crosshairs, then line up the features: **J/K** eye spacing, **U/N** eye height, **T/Y** eye size, **I/M** mouth height. Put the irises in the sculpted eyes and the lips on the lips.
 4. Press **Tab** to switch to the BALL surface, and fit its circle to the globe.
-5. Press **C** or **Esc** when done. The alignment is saved in the browser automatically.
+5. Optional: press **B** to put her room (the rest of her photograph: table, cards, candles) on the backdrop behind the head. **Tab** on to the BACKGROUND surface and move, size and warp it like the others. **[ / ]** make it darker or brighter. It's off by default, so only her face and the globe are lit.
+6. Press **C** or **Esc** when done. The alignment is saved in the browser automatically.
 
 In head mode the marquee and subtitles are off, because the projector should only light her. **S** turns subtitles back on if you put a white card under her for them. Asleep, her face dims like a turned-down gas lamp, and it sputters up to full brightness when she wakes.
 
