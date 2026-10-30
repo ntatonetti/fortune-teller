@@ -1,7 +1,8 @@
 // Head mode surfaces: the face and the crystal ball are each drawn on their own
 // canvas and corner-pinned onto the real objects (a foam head, a frosted globe).
 // Her room (the background of her photograph) can go on a third one, behind them,
-// pinned onto the backdrop; it's off until switched on in alignment mode.
+// pinned onto the backdrop. Its frame is always there to align; her room only
+// shows in it once switched on (B in alignment mode).
 // Alignment mode lets you drag corners with the mouse or nudge with keys.
 
 import { cornerPinMatrix, cssMatrix } from "./homography.js";
@@ -24,8 +25,8 @@ function defaultCorners(name) {
   const vh = window.innerHeight;
   const { w, h } = SURFACES[name];
   if (name === "bg") {
-    // fill the screen, as her photograph does on the sheet
-    const k = Math.max(vw / w, vh / h);
+    // nearly the whole screen, its corner dots just inside the edges
+    const k = Math.min(vw / w, vh / h) * 0.94;
     const [x, y] = [(vw - w * k) / 2, (vh - h * k) / 2];
     return [
       [x, y],
@@ -98,7 +99,7 @@ export class HeadMap {
   }
 
   apply() {
-    this.surfaces.bg.canvas.hidden = !this.bg.on;
+    this.surfaces.bg.canvas.hidden = !this.bg.on && !this.aligning;
     for (const s of Object.values(this.surfaces)) {
       const m = cornerPinMatrix(s.w, s.h, s.corners);
       if (m) s.canvas.style.transform = cssMatrix(m);
@@ -112,7 +113,7 @@ export class HeadMap {
     this.aligning = on;
     document.body.classList.toggle("aligning", on);
     $("alignHelp").hidden = !on;
-    this._placeHandles();
+    this.apply();
     this._status();
     if (!on) this.save();
   }
@@ -139,7 +140,7 @@ export class HeadMap {
     for (const el of this._handles || []) {
       const s = this.surfaces[el.dataset.surface];
       const i = +el.dataset.index;
-      el.hidden = !this.aligning || (el.dataset.surface === "bg" && !this.bg.on);
+      el.hidden = !this.aligning;
       const [x, y] = i === 4 ? centroid(s.corners) : s.corners[i];
       el.style.left = `${this._screenX(x)}px`;
       el.style.top = `${y}px`;
@@ -199,7 +200,6 @@ export class HeadMap {
   _background(on, delta = 0) {
     this.bg.on = on;
     this.bg.level = Math.round(Math.min(1, Math.max(0.05, this.bg.level + delta)) * 100) / 100;
-    if (!on && this.selected === "bg") this.selected = "face";
   }
 
   _geom(key, delta, lo, hi) {
@@ -214,7 +214,7 @@ export class HeadMap {
     const k = e.key;
     const actions = {
       Tab: () => {
-        const order = this.bg.on ? ["face", "ball", "bg"] : ["face", "ball"];
+        const order = ["face", "ball", "bg"];
         this.selected = order[(order.indexOf(this.selected) + 1) % order.length];
         this.corner = 0;
       },
