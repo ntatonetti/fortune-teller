@@ -64,6 +64,37 @@ STOCK_LINES: dict[str, list[str]] = {
         "Too shy? That's all right... the fates already know what you're wondering.",
         "Shh, that's okay. The fates can read your mind!",
     ],
+    # After they answer a question she asked them back.
+    "answered_adult": [
+        "Mmm... just as I suspected.",
+        "Ahh. That explains a great deal.",
+        "Interesting... the gears are taking notes.",
+    ],
+    "answered_child": [
+        "Ooh, how wonderful! I knew it.",
+        "Aha! That's just what my crystal ball said.",
+    ],
+    "no_answer_adult": [
+        "Nothing? Keep your secrets, then... the cards will tell me.",
+        "Silence... that is an answer too.",
+    ],
+    "no_answer_child": [
+        "That's all right... the fates can guess!",
+        "Shy? Never mind... my crystal ball knows anyway.",
+    ],
+    # The tarot draw: cards shuffle through her ball until they choose.
+    "draw_adult": [
+        "Now... three cards. Your past, your present, your future. Watch the glass... and press the button, or say stop, when a card calls to you.",
+        "The deck is restless tonight. Three cards: what was, what is, what will be. Stop the cards when one calls your name... the button, or your voice.",
+    ],
+    "draw_child": [
+        "Now let's pick three magic cards! Watch my crystal ball... and press the button, or shout stop, when you see the one you want!",
+        "Time for the magic cards! Three of them. Watch the ball, and press the button or say stop when one looks just right!",
+    ],
+    "card_past": ["Your past...", "This one... the past.", "The past..."],
+    "card_present": ["Your present...", "And now... the present.", "The present..."],
+    "card_future": ["And your future...", "Last of all... the future.", "The future..."],
+    "card_chooses": ["Hmm... this one chooses you.", "The card has chosen for you."],
     "consult_adult": [
         "Hmm... the gears are turning... the glass grows cloudy...",
         "The mist is stirring... I see shapes... shadows...",

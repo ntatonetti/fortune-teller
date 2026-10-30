@@ -1,6 +1,8 @@
 // The show: a state machine that runs one reading at a time.
 //   sleep -> wake (looks at you) -> greet -> invite (gold coin or a whispered secret)
-//   -> ask (listens for their question) -> consult -> speak -> dispense -> farewell -> sleep
+//   -> ask (listens for their question) -> probe (asks one back: FOLLOW_UP)
+//   -> draw (three tarot cards, then a question about the first: TAROT)
+//   -> consult -> speak (card by card) -> dispense -> farewell -> sleep
 
 import { Ears, wordCount } from "./ears.js";
 import { HeadMap } from "./headmap.js";
@@ -43,7 +45,8 @@ let T = {};
 const ms = (name) => T[name] * 1000;
 
 let state = "boot";
-let reading = null; // {audience, kid, costume, fortune}
+let reading = null; // {audience, kid, costume, fortune, question, talk: [{she, guest}], cards: [{name, img}]}
+let deck = { adult: [], child: [] }; // her tarot cards, pictures loaded once
 let tokenWaiter = null;
 let farewellAt = 0;
 // The guest whose reading just ended, followed by place and costume colours so
@@ -236,9 +239,23 @@ function questionPause(text, kid) {
   return ms(kid ? "question_pause_kid" : "question_pause") + (trailing ? ms("question_trailing") : 0);
 }
 
-// She asks for their question and listens, patiently: the clock stops while
-// they look away (asking a friend, say), and at each pause Claude judges
-// whether the question is finished. Resolves with the question ("" if none).
+// Listens patiently to their question, or their answer to one of hers
+// (`prompt`): the clock stops while they look away (asking a friend, say), and
+// at each pause Claude judges whether they've finished. Resolves with what
+// they said ("" if nothing).
+function hearOut(kid, prompt = "") {
+  return ears.listen({
+    maxMs: ms("question_max"),
+    waitMs: ms(kid ? "question_start_kid" : "question_start"),
+    moreMs: ms("question_more"),
+    silenceMs: (t) => questionPause(t, kid),
+    hold: () => seenThisSession && (!watcher.nearest || watcher.lookingAway),
+    confirm: (t) => api("/api/asked", { question: t, kid, prompt }).then((r) => r.done),
+    onHeard: (t) => showHeard(t),
+  });
+}
+
+// She asks for their question and listens. Resolves with the question ("" if none).
 async function askQuestion(kid) {
   if (!listening()) return "";
   state = "ask";
@@ -247,17 +264,12 @@ async function askQuestion(kid) {
   sound.cue();
   setPrompt("✦ speak your question ✦");
   puppet.set({ brow: 1, lidL: 1, lidR: 1 });
-  const question = await ears.listen({
-    maxMs: ms("question_max"),
-    waitMs: ms(kid ? "question_start_kid" : "question_start"),
-    moreMs: ms("question_more"),
-    silenceMs: (t) => questionPause(t, kid),
-    hold: () => seenThisSession && (!watcher.nearest || watcher.lookingAway),
-    confirm: (t) => api("/api/asked", { question: t, kid }).then((r) => r.done),
-    onHeard: (t) => showHeard(t),
-  });
+  const question = await hearOut(kid);
   stillHere();
   setPrompt("");
+  reading.question = question;
+  // Her question back is written while she reacts to theirs.
+  if (server.follow_up) reading.followUp = probe("followup");
   if (question) showHeard(question);
   await wait(ms("heard_show"));
   clearHeard();
@@ -266,14 +278,108 @@ async function askQuestion(kid) {
   return question;
 }
 
+// A question she asks them back, written by Claude: {line, audio}, or null.
+function probe(kind) {
+  const { question, costume, kid, talk, cards } = reading;
+  const body = { kind, question, costume, kid, talk, cards: cards.map((c) => c.name), max_words: maxWords };
+  return api("/api/probe", body).catch((e) => (console.warn(e), null));
+}
+
+// She asks them her question and listens to the answer as patiently as to theirs.
+async function askBack(probeP, kid) {
+  const p = await probeP;
+  stillHere();
+  if (!p?.line) return;
+  state = "probe";
+  puppet.set({ brow: 1, lidL: 1, lidR: 1 });
+  await say(p.audio, p.line);
+  stillHere();
+  sound.cue();
+  setPrompt("✦ answer her ✦");
+  const answer = await hearOut(kid, p.line);
+  stillHere();
+  setPrompt("");
+  reading.talk.push({ she: p.line, guest: answer });
+  if (answer) showHeard(answer);
+  await wait(ms("heard_show"));
+  clearHeard();
+  await sayStock(answer ? (kid ? "answered_child" : "answered_adult") : kid ? "no_answer_child" : "no_answer_adult");
+  stillHere();
+}
+
+// Resolves how a card was chosen: "press" (the button), "said" (any word), "fate"
+// (nobody chose in time) or "gone" (they walked away).
+function pickCard() {
+  const waitMs = settings.button || listening() ? ms("draw_wait") : between(1500, 3500);
+  return new Promise((resolve) => {
+    let done = false;
+    const started = performance.now();
+    const finish = (how) => {
+      if (done) return;
+      done = true;
+      clearInterval(check);
+      tokenWaiter = null;
+      ears.cancel();
+      resolve(how);
+    };
+    const check = setInterval(() => {
+      if (walkedAway) finish("gone");
+      else if (performance.now() - started > waitMs) finish("fate");
+    }, 100);
+    tokenWaiter = () => finish("press");
+    if (listening()) {
+      ears.listen({ maxMs: waitMs, waitMs, onHeard: (t) => wordCount(t) && finish("said") }).then((t) => t && finish("said"));
+    }
+  });
+}
+
+// They draw their past, present and future: the deck shuffles through her
+// ball, and the card showing when they press the button (or say "stop") is
+// theirs. Then she turns the first one over and asks them about it.
+async function drawCards(kid) {
+  const cards = kid ? deck.child : deck.adult;
+  if (cards.length < 3) return;
+  state = "draw";
+  puppet.set({ eyeX: 0, eyeY: 1, lidL: 0.7, lidR: 0.7 }); // she looks down into the ball
+  puppet.ballTarget = 0.8;
+  sound.ball(0.8);
+  puppet.deck = cards;
+  puppet.shuffling = true;
+  await sayStock(kid ? "draw_child" : "draw_adult");
+  stillHere();
+  for (const place of ["past", "present", "future"]) {
+    puppet.deck = cards.filter((c) => !reading.cards.includes(c));
+    puppet.shuffling = true;
+    setPrompt("✦ press when a card calls to you ✦");
+    sound.cue();
+    const how = await pickCard();
+    stillHere();
+    puppet.shuffling = false;
+    const card = puppet.deck.includes(puppet.card) ? puppet.card : puppet.deck[0];
+    puppet.card = card;
+    reading.cards.push(card);
+    setPrompt(`✦ ${card.name} ✦`);
+    sound.shimmer();
+    if (reading.cards.length === 3 && listening()) reading.aboutCard = probe("card"); // written while she names it
+    if (how === "fate") await sayStock("card_chooses");
+    await sayStock(`card_${place}`);
+    await wait(ms("card_hold"));
+    stillHere();
+  }
+  setPrompt("");
+  puppet.card = reading.cards[0]; // the first card, turned over again
+  puppet.set({ lidL: 1, lidR: 1 });
+  if (reading.aboutCard) await askBack(reading.aboutCard, kid);
+}
+
 function onToken() {
   lastFaceAt = performance.now(); // a hand on the button is someone here
   if (state === "sleep") {
     session({ paid: true });
   } else if (tokenWaiter) {
     tokenWaiter();
-  } else if (state === "ask" && ears.listening) {
-    ears.stop(); // the button means "that's my question"
+  } else if ((state === "ask" || state === "probe") && ears.listening) {
+    ears.stop(); // the button means "that's my question" (or answer)
   }
 }
 
@@ -320,6 +426,8 @@ async function shutDown(walked) {
   speaking?.stop();
   sound.whir(false);
   puppet.flicker = false;
+  puppet.shuffling = false;
+  puppet.card = null;
   clearHeard();
   setPrompt("");
   puppet.glitch(T.shutdown_glitch);
@@ -360,7 +468,7 @@ async function runReading({ paid = false } = {}) {
   const kid = audience === "child" || audience === "mixed";
   const showFace = !kid || !!server.kid_flicker; // kids see their face in hers only with KID_FLICKER
   if (!showFace) puppet.guestFace = null;
-  reading = { audience, kid, costume: greet?.costume || "", fortune: null, paidWith: paid ? "coin" : "", question: "" };
+  reading = { audience, kid, costume: greet?.costume || "", fortune: null, paidWith: paid ? "coin" : "", question: "", talk: [], cards: [] };
   puppet.set({ brow: kid ? 1 : 0.4 });
 
   state = "greet";
@@ -391,13 +499,16 @@ async function runReading({ paid = false } = {}) {
     await wait(ms("coin_pause"));
   }
   stillHere();
-  reading.question = await askQuestion(kid);
+  await askQuestion(kid);
+  if (reading.followUp) await askBack(reading.followUp, kid);
+  if (server.tarot) await drawCards(kid);
   await consultAndSpeak();
 }
 
 async function consultAndSpeak() {
   const { kid } = reading;
   state = "consult";
+  puppet.card = null;
   setPrompt("✦ the spirits are consulted ✦");
   sound.whir(true);
   sound.shimmer();
@@ -423,6 +534,8 @@ async function consultAndSpeak() {
         question: reading.question,
         paid_with: reading.paidWith,
         max_words: maxWords,
+        talk: reading.talk,
+        cards: reading.cards.map((c) => c.name),
       }).catch((e) => (console.warn(e), null))
     : Promise.resolve(null);
   await sayStock(kid ? "consult_child" : "consult_adult");
@@ -450,6 +563,15 @@ async function consultAndSpeak() {
   state = "speak";
   const glitch = !kidNow && (forceGlitch || Math.random() < settings.glitchRate);
   forceGlitch = false;
+  if (reading.cards.length && f.readings?.length === reading.cards.length) {
+    // Card by card, each back in her ball as she reads it.
+    for (const [i, card] of reading.cards.entries()) {
+      puppet.card = card;
+      await say(f.readings_audio?.[i], f.readings[i]);
+      stillHere();
+    }
+    puppet.card = null;
+  }
   await say(f.audio, f.spoken, { glitch });
   stillHere(); // left mid-fortune: no ticket
 
@@ -468,6 +590,8 @@ async function sleepAgain() {
   sound.creak();
   puppet.flicker = false;
   puppet.trance = false;
+  puppet.shuffling = false;
+  puppet.card = null;
   puppet.guestFace = null; // forget their face
   puppet.set({ dim: 1, lidL: 1, lidR: 1, brow: 0, turn: 0, eyeX: 0, eyeY: 0 }); // asleep: just dimmed
   puppet.gearTarget = 0.15;
@@ -624,6 +748,7 @@ function drawDebug() {
     `audience: ${reading?.audience || "-"} ${settings.audience !== "auto" ? `(forced ${settings.audience})` : ""}`,
     `ears: ${!ears.supported ? "unsupported in this browser" : ears.failed ? `failed (${ears.failed})` : settings.listen ? (ears.listening ? "LISTENING" : "on") : "off"} · paid: ${reading?.paidWith || "-"}`,
     `question: ${reading?.question || "-"}`,
+    `talk: ${reading?.talk.length ?? "-"} · cards: ${reading?.cards.map((c) => c.name).join(", ") || "-"}`,
     `walk-away: ${inReading() ? `${((performance.now() - lastFaceAt) / 1000).toFixed(1)}s` : "-"} / ${settings.walkAwayS}s${inReading() && !seenThisSession ? " (face not seen yet: off)" : ""}`,
     `costume: ${reading?.costume || "-"}`,
     `last guest: ${lastGuest ? `alike ${lastGuest.alike.toFixed(2)} (same ≥ ${T.same_guest}) · seen ${((performance.now() - lastGuest.at) / 1000).toFixed(1)}s ago` : "-"}`,
@@ -632,7 +757,7 @@ function drawDebug() {
   ].join("\n");
 }
 
-const inReading = () => ["wake", "greet", "invite", "ask", "consult", "speak", "dispense"].includes(state);
+const inReading = () => ["wake", "greet", "invite", "ask", "probe", "draw", "consult", "speak", "dispense"].includes(state);
 
 function frame(now) {
   watcher.update(now);
@@ -644,7 +769,7 @@ function frame(now) {
       lastFaceAt = now;
       seenThisSession = true;
       noteGuest(watcher.nearest, now);
-      if (state !== "consult" && now > dazedUntil) lookAt(watcher.nearest, now);
+      if (state !== "consult" && state !== "draw" && now > dazedUntil) lookAt(watcher.nearest, now);
     }
     const away = now - lastFaceAt;
     if (seenThisSession && !walkedAway && settings.walkAwayS > 0 && away > settings.walkAwayS * 1000) {
@@ -712,7 +837,7 @@ const KEYS = {
 function typeForGuest() {
   if (!ears.listening) return toast("She isn't listening right now");
   // window.prompt blocks; the listen's own timers resume when it closes.
-  const what = state === "invite" ? "the guest's secret (it is not saved)" : "the guest's question";
+  const what = { invite: "the guest's secret (it is not saved)", probe: "the guest's answer", draw: "anything, to stop the card" }[state] || "the guest's question";
   const text = window.prompt(`Type ${what}:`);
   if (text) ears.inject(text);
 }
@@ -752,6 +877,12 @@ function applyServer() {
   puppet.flickerWhere = server.flicker_where ?? "ball";
   puppet.guestAlpha = server.flicker_opacity ?? 1;
   if (server.timings) puppet.timing = T = { ...puppet.timing, ...server.timings }; // her defaults fill any gaps
+  // Her tarot deck, each picture loaded once; the kids' cards are the same objects.
+  if (server.deck && !deck.adult.length) {
+    const byName = {};
+    const card = ({ name, img }) => (byName[name] ||= { name, img: Object.assign(new Image(), { src: img }) });
+    deck = { adult: server.deck.adult.map(card), child: server.deck.child.map(card) };
+  }
 }
 
 async function refreshServer() {
@@ -1097,6 +1228,8 @@ $("beginBtn").addEventListener("click", begin);
 window.oracleState = () => state; // for scripts/smoke.py
 window.oracleHear = (text) => ears.inject(text); // ditto: stands in for the mic
 window.oracleListening = () => ears.listening;
+window.oracleChoosing = () => state === "draw" && !!tokenWaiter; // cards shuffling, waiting for a press
+window.oracleReading = () => reading && { ...reading, cards: reading.cards.map((c) => c.name), fortune: undefined, followUp: undefined, aboutCard: undefined };
 window.oracleFakeFace = (f) => (watcher.fake = f); // a face for tests; undefined = real camera
 window.oracleSound = () => sound; // for poking effects from DevTools
 applyMirror();

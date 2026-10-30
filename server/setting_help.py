@@ -36,6 +36,19 @@ HELP: dict[str, tuple[str, str]] = {
         "How long she waits for that finished-or-not judgement. Past this she assumes they're done and moves on.",
         "4: she never waits more than 4 s on it",
     ),
+    "CHAT_MODEL": (
+        "The Claude model that writes the questions she asks them back: one after their question, and one about the first tarot card they draw. It only reads the words (no camera frame), and the guest is waiting on it, so a fast model keeps the talk flowing.",
+        "claude-haiku-5-5 for a quick reply; claude-opus-5-5 for sharper questions, a second or two slower",
+    ),
+    # The conversation
+    "FOLLOW_UP": (
+        "After the guest asks their question, she asks one back, to draw them out (\"Is this a matter of the heart... or of coin?\"; for kids, \"What's the bravest thing you've ever done?\"). She listens to the answer as patiently as to the question, and the fortune uses it. Needs listening on (L).",
+        "true; false for a shorter reading with no back-and-forth",
+    ),
+    "TAROT": (
+        "Before she consults, the guest draws three cards, their past, present and future: cards shuffle through her crystal ball, and the one showing when they press the button (or say \"stop\") is theirs. She turns the first one over and asks them about it, then reads the fortune card by card, each card back in her ball as she speaks of it. The cards print on the ticket. Kids draw only from the gentle cards. Off, she reads from a random omen as before.",
+        "true; false for her old single fortune",
+    ),
     # Her voice
     "ELEVENLABS_VOICE_ID": (
         "The ElevenLabs voice she speaks in. Choose it from the list below with Use this voice. Switching voices re-records all her stock lines when you awaken her, which takes a few seconds and uses ElevenLabs credits.",
@@ -212,6 +225,18 @@ HELP: dict[str, tuple[str, str]] = {
         "0.6",
     ),
     # Consulting, the fortune, the ticket
+    "DRAW_WAIT_S": (
+        "How long each card shuffles waiting for the guest to choose. If nobody presses or speaks by then, the card showing picks itself (\"this one chooses you\").",
+        "12; 6 if guests tend to stand there frozen",
+    ),
+    "CARD_SHUFFLE_S": (
+        "How long each card shows as the deck shuffles through her ball. Shorter is a blur that's hard to pick from; longer lets a guest wait for a card they like.",
+        "0.42; 0.8 to let them really choose",
+    ),
+    "CARD_HOLD_S": (
+        "After a card is chosen and she names its place (\"the past...\"), it stays in her ball this long before the next shuffle starts.",
+        "0.8",
+    ),
     "CONSULT_MIN_S": (
         "The shortest she consults her ball, even if the fortune is already back, so the reveal never feels instant.",
         "3.5",

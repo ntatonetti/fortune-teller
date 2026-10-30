@@ -172,6 +172,12 @@ export class Puppet {
     this.flickers = 3; // glimpses of the guest per consult (FACE_FLICKERS in .env)
     this.flickerWhere = "ball"; // where their face shows: "ball" or "face" (FLICKER_WHERE in .env)
     this._flickers = 0; // glimpses so far this consult
+    this.deck = []; // tarot cards to shuffle through: [{name, img}]
+    this.card = null; // the card in her crystal ball now, if any
+    this.shuffling = false; // cards cutting past in her ball, one per CARD_SHUFFLE_S
+    this._shuffleHold = 0;
+    this._cardShown = null; // the card fading in or out
+    this._cardAlpha = 0;
     this.portrait = null; // her photograph, once loaded; drawn porcelain until then
     Portrait.load().then((p) => (this.portrait = p));
     this.jawLevel = 0; // smoothed voice level, for the photograph's three mouths
@@ -263,6 +269,8 @@ export class Puppet {
     this._last = now;
     // smooth things
     this.ball += (this.ballTarget - this.ball) * Math.min(1, dt * 3);
+    if (this.card) this._cardShown = this.card;
+    this._cardAlpha += ((this.card ? 1 : 0) - this._cardAlpha) * Math.min(1, dt * 6);
     this.gearSpeed += (this.gearTarget - this.gearSpeed) * Math.min(1, dt * 2);
     this._gearAngle += this.gearSpeed * dt * Math.PI * 2;
     // stepped things
@@ -338,6 +346,14 @@ export class Puppet {
         this._flickerHold = ticks(between(this.timing.glimpse_min, this.timing.glimpse_max));
       }
     }
+    // Shuffling: a card at a time cuts past in her ball, choppy, like the rest of her.
+    if (this.shuffling && this.deck.length && --this._shuffleHold <= 0) {
+      let next;
+      do next = this.deck[Math.floor(Math.random() * this.deck.length)];
+      while (this.deck.length > 1 && next === this.card);
+      this.card = next;
+      this._shuffleHold = ticks(this.timing.card_shuffle ?? 0.42);
+    }
     // A seizure shakes the guest's face loose again, stuttering on and off.
     if (this.shake > 0 && this.guestFace) this._guestShown = Math.random() < 0.5 ? this.guestAlpha : 0;
   }
@@ -402,6 +418,7 @@ export class Puppet {
     this._ballGlow(b.x, b.y, BALL.r * k, time);
     c.save();
     c.translate(b.x, b.y);
+    this._ballCard(c, BALL.r * k, time);
     this._ballFace(c, BALL.r * k);
     c.restore();
     if (this.flickerWhere !== "face" || !this._guestShown) return;
@@ -435,6 +452,21 @@ export class Puppet {
     c.clip();
     c.globalAlpha = this._guestShown;
     c.drawImage(f, (-f.width * s) / 2, (-f.height * s) / 2, f.width * s, f.height * s);
+    c.restore();
+  }
+
+  // A tarot card floating in the crystal ball (centre 0,0, radius r), as tall as fits.
+  _ballCard(c, r, time) {
+    const card = this._cardShown;
+    if (!card?.img?.naturalWidth || this._cardAlpha < 0.01) return;
+    const h = r * 1.65;
+    const w = (h * card.img.naturalWidth) / card.img.naturalHeight;
+    c.save();
+    c.beginPath();
+    c.arc(0, 0, r - 3, 0, Math.PI * 2);
+    c.clip();
+    c.globalAlpha = this._cardAlpha * (this.shuffling ? 0.8 : 1);
+    c.drawImage(card.img, -w / 2, -h / 2 + Math.sin(time * 1.3) * r * 0.03, w, h);
     c.restore();
   }
 
@@ -1148,6 +1180,7 @@ export class Puppet {
         c.fill();
       }
       c.filter = "none";
+      this._ballCard(c, r, time);
       this._ballFace(c, r);
       c.globalCompositeOperation = "destination-in";
       const g = c.createRadialGradient(0, 0, r * 0.6, 0, 0, r);

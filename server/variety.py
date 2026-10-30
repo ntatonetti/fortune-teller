@@ -18,6 +18,13 @@ TAROT = [
     "The Sun", "Judgement", "The World",
 ]
 TAROT_FOR_KIDS = ["The Fool", "The Magician", "The Empress", "The Chariot", "Strength", "Wheel of Fortune", "The Star", "The Moon", "The Sun", "The World"]
+# Where the guest draws from (TAROT in .env), and where each card's picture is:
+# the 1909 Rider-Waite-Smith scans, public domain, in static/img/tarot/.
+SPREAD = ["past", "present", "future"]
+
+
+def card_image(name: str) -> str:
+    return f"/img/tarot/{name.lower().replace(' ', '-')}.jpg"
 
 SIGNS = [
     "tea leaves left in a chipped cup", "a raven tapping at the glass", "a crack spreading across a mirror",

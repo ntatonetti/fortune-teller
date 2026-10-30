@@ -35,8 +35,10 @@ VOICE_PRICES = {
 STAGES = [
     ("greet", "Greeting: Claude looks at them"),
     ("asked", "Finished asking? (each pause)"),
+    ("probe", "Her questions back: Claude writes them"),
     ("fortune", "Fortune: Claude reads them"),
     ("voice_greet", "Greeting: her voice"),
+    ("voice_probe", "Her questions back: her voice"),
     ("voice_fortune", "Fortune: her voice"),
 ]
 
@@ -53,8 +55,11 @@ def _spoken(call: dict) -> str:
     out = call.get("output") or {}
     if call["kind"] == "greet" and out.get("audience") != "nobody":
         return out.get("greeting", "")
+    if call["kind"] == "probe":
+        return out.get("line", "")
     if call["kind"] == "fortune":
-        return out.get("spoken", "")
+        # a tarot reading is spoken card by card, then the close
+        return " ".join(out.get(k, "") for k in ("past", "present", "future", "spoken") if out.get(k))
     return ""
 
 
@@ -84,7 +89,7 @@ def report(day: str = "") -> dict:
             v = rows["voice_" + c["kind"]]
             v["calls"] += 1
             v["chars"] += len(text)
-    for key in ("voice_greet", "voice_fortune"):
+    for key in ("voice_greet", "voice_probe", "voice_fortune"):
         rows[key]["cost"] = rows[key]["chars"] * (voice_price or 0) / 1000
     total = sum(r["cost"] for r in rows.values())
     readings = sum(1 for c in calls if c["kind"] == "fortune" and not c.get("error"))
@@ -101,6 +106,7 @@ def report(day: str = "") -> dict:
         "rows": list(rows.values()),
         "claude_model": config.CLAUDE_MODEL,
         "asked_model": config.ASKED_MODEL,
+        "chat_model": config.CHAT_MODEL,
         "voice_model": config.ELEVENLABS_MODEL,
         "voice_price_per_1k": voice_price,
         "stock_chars": stock_chars,

@@ -2,8 +2,9 @@
 
 Calls per guest:
   greet()   - fast look as someone approaches: is this a child? what are they wearing?
-  asked()   - at each pause while they ask their question: are they finished?
-  fortune() - the full reading once they press the button.
+  asked()   - at each pause while they ask their question (or answer hers): are they finished?
+  probe()   - a question she asks them back: after their question, and about the first card they drew.
+  fortune() - the full reading once they press the button, card by card if they drew a spread.
 Each returns None if Claude is unavailable; the booth assumes it is always online.
 """
 
@@ -88,11 +89,49 @@ FORTUNE_SCHEMA = {
 }
 
 
+# A fortune read from a three-card spread: a few words per card, then the close.
+TAROT_SCHEMA = {
+    **FORTUNE_SCHEMA,
+    "properties": {
+        **FORTUNE_SCHEMA["properties"],
+        **{
+            place: {
+                "type": "string",
+                "description": f"Spoken aloud as you turn over the card of their {place.upper()}: name the card and read it for them, tied to their question and what they told you. ADULT: 20-40 words. CHILD: 12-25 words.",
+            }
+            for place in variety.SPREAD
+        },
+        "spoken": {
+            "type": "string",
+            "description": "Spoken aloud after the three cards: draw them together and answer their question. ADULT: 40-70 words. CHILD: 25-45 words. Weave in a specific costume detail, the lucky number, and the task. If you mention the printout they receive, call it their ticket (tarot cards are still cards).",
+        },
+    },
+    "required": FORTUNE_SCHEMA["required"] + variety.SPREAD,
+}
+
+PROBE_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "line": {
+            "type": "string",
+            "description": "What you say aloud: at most 30 words (CHILD: at most 22), ending with one question they can answer out loud in a few words.",
+        },
+    },
+    "required": ["line"],
+    "additionalProperties": False,
+}
+
 ASKED_SYSTEM = """\
 You listen for the end of a question at a fortune-teller booth at a Halloween party. A guest, often a child, was told to ask the fates a question out loud. Their speech is transcribed live, so it may be garbled. They have just gone quiet. Decide whether they have finished asking.
 
 Finished: a complete question or wish has been said ("will I get a puppy", "tell me about my love life", "am I going to be famous"), even if it rambles.
 Not finished: they trail off or hesitate mid-thought ("will I", "um, so", "I want to know if"), are still deciding or asking someone else for ideas ("what should I ask?", "mom, what do I say"), or have only said filler or a false start. Children often stop mid-sentence and then carry on."""
+
+ANSWERED_SYSTEM = """\
+You listen for the end of an answer at a fortune-teller booth at a Halloween party. The fortune teller asked a guest, often a child, a question, and they are answering out loud. Their speech is transcribed live, so it may be garbled. They have just gone quiet. Decide whether they have finished answering.
+
+Finished: they have given an answer, even a one-word one ("yes", "the heart", "a dragon", "my sister"), or said they don't know or won't say.
+Not finished: they trail off mid-thought ("well, it was", "um, I think maybe"), are still deciding or asking someone else ("mom, what's my favourite?"), or have only said filler or a false start. Children often stop mid-sentence and then carry on."""
 
 ASKED_SCHEMA = {
     "type": "object",
@@ -140,7 +179,8 @@ async def _ask(
     system = system or persona()
     started = time.time()
     response, output, error = await _call(schema, effort, max_tokens, content, timeout, model, system)
-    kind = {id(GREET_SCHEMA): "greet", id(FORTUNE_SCHEMA): "fortune", id(ASKED_SCHEMA): "asked"}.get(id(schema), "other")
+    kind = {id(GREET_SCHEMA): "greet", id(FORTUNE_SCHEMA): "fortune", id(TAROT_SCHEMA): "fortune",
+            id(ASKED_SCHEMA): "asked", id(PROBE_SCHEMA): "probe"}.get(id(schema), "other")
     history.record(kind, model=model, effort=effort, system=system, content=content, started=started,
                    response=response, output=output, error=error)
     return output
@@ -234,9 +274,13 @@ async def greet(jpeg_b64: str, max_words: int = 0) -> Greeting | None:
     return g
 
 
-async def asked(question: str, kid: bool) -> bool | None:
-    """Whether the words so far are a finished question (None if Claude is unavailable)."""
-    who = "A child is asking." if kid else "An adult is asking."
+async def asked(question: str, kid: bool, prompt: str = "") -> bool | None:
+    """Whether the words so far are a finished question, or, if `prompt` is what
+    she asked them, a finished answer to it (None if Claude is unavailable)."""
+    if prompt:
+        who = f"She asked {'a child' if kid else 'an adult'}: {prompt.strip()[:300]}"
+    else:
+        who = "A child is asking." if kid else "An adult is asking."
     data = await _ask(
         ASKED_SCHEMA,
         "low",
@@ -244,9 +288,75 @@ async def asked(question: str, kid: bool) -> bool | None:
         [{"type": "text", "text": f"{who}\n<heard>{question.strip()[:500]}</heard>"}],
         timeout=config.ASKED_TIMEOUT_S,
         model=config.ASKED_MODEL,
-        system=ASKED_SYSTEM,
+        system=ANSWERED_SYSTEM if prompt else ASKED_SYSTEM,
     )
     return data.get("done") if data else None
+
+
+def spread(cards: list[str], kid: bool) -> list[str]:
+    """The cards they drew, if they're a whole spread of real cards; else none."""
+    deck = variety.TAROT_FOR_KIDS if kid else variety.TAROT
+    return cards if len(cards) == len(variety.SPREAD) and all(c in deck for c in cards) else []
+
+
+def _talk(talk: list[dict]) -> str:
+    """What she has asked them so far, and what they answered."""
+    lines = []
+    for t in talk[-3:]:
+        said = (t.get("guest") or "").strip()[:300]
+        lines.append(f"- You asked: {(t.get('she') or '').strip()[:300]}\n  They answered: "
+                     + (f"<answer>{said}</answer>" if said else "(nothing)"))
+    return "\n".join(lines)
+
+
+def _cards(cards: list[str]) -> str:
+    return ", ".join(f"{place}: {card}" for place, card in zip(variety.SPREAD, cards))
+
+
+PROBES = {
+    "followup": (
+        "Before you consult the fates, ask them ONE question back that will make your fortune sharper, the way a fortune teller"
+        " draws a guest out: about the person, place, wish or worry behind their question, or a choice between two things"
+        " (\"Is this a matter of the heart... or of coin?\"). In CHILD mode, something fun and easy for a child to answer"
+        " (a favourite animal, the bravest thing they ever did, a wish). Do not answer their question or tell their fortune yet."
+    ),
+    "card": (
+        "Turn over the first card, their PAST, and ask them one question about it: name the card, say in a few words what it"
+        " means for their past, and ask about something in their life the card hints at (\"The Tower... something in your"
+        " life has already cracked, hasn't it? What was it?\"). In CHILD mode keep it warm and fun. Do not read the other cards yet."
+    ),
+}
+
+
+async def probe(
+    kind: str, question: str, costume: str, kid: bool, talk: list[dict] | None = None,
+    cards: list[str] | None = None, max_words: int = 0,
+) -> str | None:
+    """A question she asks them back, mid-reading (None if Claude is unavailable)."""
+    question = question.strip()[:500]
+    asked = (
+        f"They asked the fates, out loud (transcribed from speech, so it may be garbled):\n<question>{question}</question>"
+        if question
+        else "They did not ask a question out loud; they keep it in their heart."
+    )
+    so_far = f"\n\nYou have already asked them:\n{_talk(talk)}" if talk else ""
+    drew = f"\n\nThey drew three tarot cards: {_cards(cards)}." if cards else ""
+    data = await _ask(
+        PROBE_SCHEMA,
+        "low",
+        2000,
+        [{
+            "type": "text",
+            "text": (
+                f"{'CHILD' if kid else 'ADULT'} mode. Earlier you noticed: {costume or 'unknown'}. They have paid.\n\n{asked}"
+                f"{so_far}{drew}\n\n{PROBES[kind]}{_brief('line', max_words)}"
+            ),
+        }],
+        timeout=config.ASKED_TIMEOUT_S + 4,
+        model=config.CHAT_MODEL,
+    )
+    line = (data or {}).get("line", "").strip()
+    return _cap(line, max_words) or None
 
 
 async def fortune(
@@ -257,11 +367,14 @@ async def fortune(
     question: str = "",
     paid_with: str = "",
     max_words: int = 0,
+    talk: list[dict] | None = None,
+    cards: list[str] | None = None,
 ) -> Fortune | None:
     question = question.strip()[:500]
     kid = is_childlike(audience_hint)
+    cards = spread(cards or [], kid)
     lucky = variety.pick_lucky([g["lucky"] for g in recent_guests if isinstance(g.get("lucky"), int)])
-    sign = variety.pick_sign(kid)
+    sign = f"the three tarot cards they drew ({_cards(cards)})" if cards else variety.pick_sign(kid)
     told = _avoid(
         "Fortunes you already told tonight (opening words | omen | task)",
         [f"{g['opener']}... | {g.get('title', '')} | {g.get('task', '')}" for g in recent_guests if g.get("opener")],
@@ -287,8 +400,14 @@ async def fortune(
         if question
         else "\n\nThey did not ask a question aloud; answer the question they hold in their heart."
     )
+    if talk:
+        asked += (
+            "\n\nYou drew them out before the reading (their words transcribed from speech, so they may be garbled):\n"
+            f"{_talk(talk)}\nUse what they told you, so they can tell you listened. Never repeat anything crude or too personal."
+        )
+    brief = _brief("spoken` and each of `" + "`, `".join(variety.SPREAD) if cards else "spoken", max_words)
     data = await _ask(
-        FORTUNE_SCHEMA,
+        TAROT_SCHEMA if cards else FORTUNE_SCHEMA,
         config.FORTUNE_EFFORT,
         8000,
         [
@@ -299,7 +418,7 @@ async def fortune(
                     f"{payment} Earlier you noticed: {costume_hint or 'unknown'}."
                     " Look closely through the glass and tell their fortune. Make it specific to what you see."
                     f" Read it from {sign}. Their lucky number is {lucky}."
-                    f"{asked}{child_note}{memory}{told}{phrases.for_fortune(kid)}{_brief('spoken', max_words)}"
+                    f"{asked}{child_note}{memory}{told}{phrases.for_fortune(kid)}{brief}"
                 ),
             },
         ],
@@ -308,7 +427,8 @@ async def fortune(
     result = None
     if data:
         try:
-            result = Fortune(**data, question=question)
+            result = Fortune(**data, question=question, cards=cards,
+                             readings=[data.get(place, "") for place in variety.SPREAD] if cards else [])
             # Stay on the cautious side: once a child was seen, it is a child reading.
             if is_childlike(audience_hint) and not is_childlike(result.audience):
                 result.audience = audience_hint
@@ -316,5 +436,6 @@ async def fortune(
             log.warning("Bad fortune shape: %s", e)
     if result:
         result.spoken = _cap(result.spoken, max_words)
+        result.readings = [_cap(r, max_words) for r in result.readings]
     return result
 

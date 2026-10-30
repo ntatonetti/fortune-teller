@@ -24,6 +24,11 @@ def _short(question: str, limit: int = 90) -> str:
     return question if len(question) <= limit else question[: limit - 1].rsplit(" ", 1)[0] + "…"
 
 
+def _spread(f: Fortune) -> list[str]:
+    """The tarot cards they drew, one per line: "Past: The Tower"."""
+    return [f"{place.title()}: {card}" for place, card in zip(("past", "present", "future"), f.cards)]
+
+
 def card_lines(f: Fortune, width: int) -> list[str]:
     wrap = lambda s: textwrap.wrap(s, width) or [""]  # noqa: E731
     rule = "~" * width
@@ -31,6 +36,8 @@ def card_lines(f: Fortune, width: int) -> list[str]:
     lines += [l.center(width) for l in wrap(f.card_title.upper())]
     if f.question:
         lines += ["", "You asked:"] + wrap(f'"{_short(f.question)}"')
+    if f.cards:
+        lines += ["", "Your cards:"] + [l for c in _spread(f) for l in wrap(c)]
     lines += [""] + wrap(f.card_text) + [""]
     lines += ["Your task tonight:"] + wrap(f.task) + [""]
     lines += [f"Lucky number: {f.lucky_number}".center(width), "", rule, FOOTER.center(width), rule]
@@ -55,6 +62,11 @@ def _print_usb(f: Fortune) -> None:
         p.set(align="left", bold=False)
         if f.question:
             p.text("You asked:\n" + "\n".join(textwrap.wrap(plain(f'"{_short(f.question)}"'), width)) + "\n\n")
+        if f.cards:
+            p.set(bold=True)
+            p.text("Your cards:\n")
+            p.set(bold=False)
+            p.text("\n".join(l for c in _spread(f) for l in textwrap.wrap(c, width)) + "\n\n")
         p.text("\n".join(textwrap.wrap(f.card_text, width)) + "\n\n")
         p.set(bold=True)
         p.text("Your task tonight:\n")

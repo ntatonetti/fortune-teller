@@ -18,8 +18,10 @@
         /* Claude in brass, her voice in green */
         --greet: #c9a24a;
         --asked: #e3cf96;
+        --probe: #a8801f;
         --fortune: #7a5a12;
         --voice_greet: #8fae9b;
+        --voice_probe: #5f8a72;
         --voice_fortune: #3d6650;
       }
       * { box-sizing: border-box; }
@@ -149,7 +151,7 @@
         out.append(el("table", {}, el("thead", {}, head), body, foot));
 
         const notes = el("div", { class: "notes" },
-          el("p", { text: `Claude: ${r.claude_model} looks and reads, ${r.asked_model} judges whether they have finished asking. Tokens in include the camera frame; tokens out include her thinking.` }),
+          el("p", { text: `Claude: ${r.claude_model} looks and reads, ${r.asked_model} judges whether they have finished asking, ${r.chat_model} writes her questions back. Tokens in include the camera frame; tokens out include her thinking.` }),
           el("p", { text: r.voice_price_per_1k == null
             ? `Voice: no price known for ${r.voice_model}, so it is counted as free.`
             : `Voice: priced at ${r.voice_model}, $${r.voice_price_per_1k} per 1000 letters, the model set now. Her stock lines (${num(r.stock_chars)} letters, ${money(r.stock_cost)}) are paid once per voice and model, then reused, so they aren't in the table.` }),

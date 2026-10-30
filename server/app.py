@@ -42,6 +42,22 @@ app = FastAPI(lifespan=lifespan)
 class Heard(BaseModel):
     question: str
     kid: bool = False
+    prompt: str = ""  # what she asked them, if this is their answer to her
+
+
+class Talk(BaseModel):
+    she: str  # what she asked them
+    guest: str = ""  # what they answered
+
+
+class Probe(BaseModel):
+    kind: str  # "followup" (after their question) | "card" (about the first card they drew)
+    question: str = ""
+    costume: str = ""
+    kid: bool = False
+    talk: list[Talk] = []
+    cards: list[str] = []
+    max_words: int = 0
 
 
 class Frame(BaseModel):
@@ -51,6 +67,8 @@ class Frame(BaseModel):
     question: str = ""
     paid_with: str = ""  # "coin" | "secret" | ""
     max_words: int = 0  # debug: cap what she says (?brief in the URL); 0 = full length
+    talk: list[Talk] = []  # her questions back, and their answers
+    cards: list[str] = []  # the tarot spread they drew: past, present, future
 
 
 def _b64(image: str) -> str:
@@ -74,6 +92,12 @@ async def get_config():
         "flicker_opacity": config.FLICKER_OPACITY,
         "kid_flicker": config.KID_FLICKER,
         "timings": config.TIMINGS,
+        "follow_up": config.FOLLOW_UP,
+        "tarot": config.TAROT,
+        "deck": {
+            "adult": [{"name": n, "img": variety.card_image(n)} for n in variety.TAROT],
+            "child": [{"name": n, "img": variety.card_image(n)} for n in variety.TAROT_FOR_KIDS],
+        },
         "settings": [
             {"section": s, "name": n, "value": v, "about": a, **config.CONTROLS[n],
              "detail": HELP[n][0], "example": HELP[n][1]}
@@ -161,11 +185,28 @@ async def greet(frame: Frame):
 
 @app.post("/api/asked")
 async def asked(heard: Heard):
-    done = await oracle.asked(heard.question, heard.kid)
+    done = await oracle.asked(heard.question, heard.kid, heard.prompt)
     if done is None:
         raise HTTPException(503, "Claude unavailable")
-    log.info("asked: %d words, %s", len(heard.question.split()), "finished" if done else "still going")
+    log.info("%s: %d words, %s", "answered" if heard.prompt else "asked", len(heard.question.split()),
+             "finished" if done else "still going")
     return {"done": done}
+
+
+@app.post("/api/probe")
+async def probe(p: Probe):
+    """A question she asks them back, and her voice saying it."""
+    if p.kind not in oracle.PROBES:
+        raise HTTPException(400, f"no such question: {p.kind}")
+    cards = oracle.spread(p.cards, p.kid)
+    if p.kind == "card" and not cards:
+        raise HTTPException(400, "a card question needs the spread they drew")
+    line = await oracle.probe(p.kind, p.question, p.costume, p.kid, [t.model_dump() for t in p.talk], cards,
+                              max_words=p.max_words)
+    if line is None:
+        raise HTTPException(503, "Claude unavailable")
+    log.info("probe: %s, %d words", p.kind, len(line.split()))
+    return {"line": line, "audio": _audio_url(await voice.speak(line))}
 
 
 @app.post("/api/fortune")
@@ -178,17 +219,20 @@ async def fortune(frame: Frame):
         question=frame.question,
         paid_with=frame.paid_with,
         max_words=frame.max_words,
+        talk=[t.model_dump() for t in frame.talk],
+        cards=frame.cards,
     )
     if f is None:
         raise HTTPException(503, "Claude unavailable")
     log.info(
-        "fortune: audience=%s paid=%s asked=%s title=%r",
+        "fortune: audience=%s paid=%s asked=%s cards=%s title=%r",
         f.audience,
         frame.paid_with or "-",
         "yes" if f.question else "no",
+        ",".join(f.cards) or "-",
         f.card_title,
     )
-    audio = await voice.speak(f.spoken)
+    audio, *readings = await asyncio.gather(voice.speak(f.spoken), *(voice.speak(r) for r in f.readings))
     if f.audience != "nobody":
         guests.add(
             f.costume,
@@ -199,7 +243,7 @@ async def fortune(frame: Frame):
             task=f.task,
             opener=variety.opener(f.spoken),
         )
-    return {**f.model_dump(), "audio": _audio_url(audio)}
+    return {**f.model_dump(), "audio": _audio_url(audio), "readings_audio": [_audio_url(a) for a in readings]}
 
 
 @app.post("/api/print")

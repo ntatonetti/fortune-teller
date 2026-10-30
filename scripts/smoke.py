@@ -5,7 +5,8 @@ ADULT=1 forces adult mode and a mid-fortune glitch. HEAD=1 runs in foam-head mod
 and also screenshots the alignment screen. SECRET=1 pays with a whispered secret and
 asks a question (a fake microphone stands in for speech recognition). WALKAWAY=1 has
 the guest walk off at the payment step (WALKAWAY=speak: during the fortune) and checks that she shuts down. A steady fake face
-stands in for the camera so the fake video's flicker can't trigger walk-away.
+stands in for the camera so the fake video's flicker can't trigger walk-away. With FOLLOW_UP and TAROT on (the
+default), the guest asks a question, answers each of hers, and presses the button to stop each card.
 """
 
 import sys
@@ -96,14 +97,40 @@ with sync_playwright() as p:
         hear("Will I find the buried treasure tonight")
     else:
         page.keyboard.press("Space")
-    page.wait_for_timeout(2500)
-    page.screenshot(path=out / "4-consult.png")
-    while "speak" not in state() and time.time() - t0 < 40:
+    # Her question, her questions back, the cards: answer and choose until she reads.
+    answers = iter(["Coin, obviously", "A ship that sank last summer"])
+    seen = []
+    while state() != "speak" and time.time() - t0 < 150:
+        st = state()
+        if st not in seen:
+            seen.append(st)
+        listening = page.evaluate("window.oracleListening()")
+        if st == "ask" and listening:
+            page.evaluate("window.oracleHear('Will I find the buried treasure tonight')")
+        elif st == "probe" and listening:
+            page.screenshot(path=out / f"4-probe-{seen.count('probe')}.png")
+            said = next(answers, "yes")
+            print("she asked; answering:", said)
+            page.evaluate(f"window.oracleHear({said!r})")
+            page.wait_for_timeout(1500)
+        elif page.evaluate("window.oracleChoosing()"):
+            page.wait_for_timeout(1200)  # let a few cards go by
+            n = len(page.evaluate("window.oracleReading().cards"))
+            page.screenshot(path=out / f"4-draw-{n + 1}.png")
+            page.keyboard.press("Space")
+            page.wait_for_timeout(400)
+            print("drew:", page.evaluate("window.oracleReading().cards").pop())
+        elif st == "consult" and not (out / "4-consult.png").exists():
+            page.wait_for_timeout(1500)
+            page.screenshot(path=out / "4-consult.png")
         page.wait_for_timeout(200)
+    print("states:", " -> ".join(seen))
     page.wait_for_timeout(2500)
     page.screenshot(path=out / "5-speaking.png")
     print("reached:", state())
-    while "sleep" not in state() and time.time() - t0 < 120:
+    r = page.evaluate("window.oracleReading()")
+    print("cards:", r["cards"], "| talk:", r["talk"])
+    while "sleep" not in state() and time.time() - t0 < 300:
         page.wait_for_timeout(300)
     print("back to:", state(), f"after {time.time() - t0:.0f}s")
     if os.getenv("HEAD"):

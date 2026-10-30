@@ -82,6 +82,11 @@ GREET_TIMEOUT_S = _setting("GREET_TIMEOUT_S", 8, "gives up on the greeting after
 FORTUNE_TIMEOUT_S = _setting("FORTUNE_TIMEOUT_S", 20, "gives up on the fortune after this: \"the spirits are silent\"", span=[5, 60, 1])
 ASKED_MODEL = _setting("ASKED_MODEL", "claude-haiku-5-5", "judges whether a guest has finished asking", str, MODELS)
 ASKED_TIMEOUT_S = _setting("ASKED_TIMEOUT_S", 4, "gives up on that judgement after this", span=[1, 15, 0.5])
+CHAT_MODEL = _setting("CHAT_MODEL", "claude-haiku-5-5", "writes the questions she asks them back, mid-reading", str, MODELS)
+
+_section = "The conversation"
+FOLLOW_UP = _setting("FOLLOW_UP", True, "after their question, she asks them one back", bool)
+TAROT = _setting("TAROT", True, "they draw three tarot cards in her ball; she asks about the first, then reads them one by one", bool)
 
 # Voice
 _section = "Her voice"
@@ -126,6 +131,7 @@ _SECTIONS = {
     "LOOK_SIDE": "Her looks",
     "PAY_TIMEOUT_S": "Paying",
     "QUESTION_MAX_S": "Their question",
+    "DRAW_WAIT_S": "Drawing the cards",
     "CONSULT_MIN_S": "Consulting, the fortune, the ticket",
 }
 _TIMINGS = {
@@ -166,6 +172,10 @@ _TIMINGS = {
     "QUESTION_TRAILING_S": (2.5, "added to the pause if they trailed off (\"will I...\")", (0, 6, 0.1)),
     "QUESTION_MORE_S": (6, "added if Claude says the question isn't finished", (0, 15, 0.5)),
     "HEARD_SHOW_S": (0.6, "their question stays on screen this long before she answers", (0, 3, 0.1)),
+    # drawing the cards
+    "DRAW_WAIT_S": (12, "no press or word by then: the card showing picks itself", (2, 40, 1)),
+    "CARD_SHUFFLE_S": (0.42, "each card shows this long as they shuffle through her ball", (0.1, 2, 0.02)),
+    "CARD_HOLD_S": (0.8, "a chosen card stays in the ball this long after she names its place", (0, 4, 0.1)),
     # consulting, the fortune, the ticket
     "CONSULT_MIN_S": (3.5, "shortest consult, even if the fortune comes back sooner", (0, 15, 0.5)),
     "GLIMPSE_MIN_S": (0.33, "shortest glimpse of their face", (0.05, 2, 0.01)),

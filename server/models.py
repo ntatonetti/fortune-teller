@@ -19,3 +19,5 @@ class Fortune(BaseModel):
     task: str
     gist: str
     question: str = ""  # what the guest asked, for the printed card
+    cards: list[str] = []  # the tarot spread they drew (past, present, future), if any
+    readings: list[str] = []  # what she says over each of those cards

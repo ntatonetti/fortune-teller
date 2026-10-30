@@ -345,7 +345,7 @@ def test_question_and_payment_reach_the_prompt(monkeypatch):
 def test_secret_text_is_never_accepted_or_logged(monkeypatch):
     seen = {}
 
-    async def fake_fortune(image, audience, costume, recent, question="", paid_with="", max_words=0):
+    async def fake_fortune(image, audience, costume, recent, question="", paid_with="", max_words=0, **kw):
         seen.update(question=question, paid_with=paid_with)
         return Fortune(**PIRATE)
 
@@ -565,3 +565,111 @@ def test_hearing_a_voice():
         assert client.post("/api/voice/sample", json={"voice_id": "not an id!"}).status_code == 400
         r = client.post("/api/voice/sample", json={"voice_id": "S0erf8BY5pzZPCxzCfku"})
         assert r.status_code == 200 and client.get(r.json()["url"]).content[:3] == b"ID3"
+
+
+def test_she_asks_back_with_what_they_said(monkeypatch):
+    seen = {}
+
+    async def fake_ask(schema, effort, max_tokens, content, timeout, model=None, system=None):
+        seen.update(schema=schema, model=model, text=content[0]["text"])
+        return {"line": "Is this a matter of the heart... or of coin?"}
+
+    monkeypatch.setattr(oracle, "_ask", fake_ask)
+    with TestClient(app_module.app) as client:
+        r = client.post("/api/probe", json={"kind": "followup", "question": "Will I be rich?", "costume": "a pirate"}).json()
+        assert r["line"].endswith("coin?") and r["audio"].startswith("/api/audio/")
+        assert seen["schema"] is oracle.PROBE_SCHEMA and seen["model"] == "claude-haiku-5-5"
+        assert "<question>Will I be rich?</question>" in seen["text"] and "ADULT mode" in seen["text"]
+        assert "a pirate" in seen["text"] and "ONE question back" in seen["text"]
+
+        talk = [{"she": "Heart or coin?", "guest": "coin, obviously"}]
+        cards = ["The Tower", "The Star", "The Sun"]
+        client.post("/api/probe", json={"kind": "card", "question": "Will I be rich?", "talk": talk, "cards": cards})
+        assert "<answer>coin, obviously</answer>" in seen["text"]
+        assert "past: The Tower, present: The Star, future: The Sun" in seen["text"] and "their PAST" in seen["text"]
+
+        # kids draw only the gentle cards, and a card question needs a real spread
+        bad = client.post("/api/probe", json={"kind": "card", "kid": True, "cards": cards})
+        assert bad.status_code == 400
+        assert client.post("/api/probe", json={"kind": "riddle"}).status_code == 400
+
+
+def test_answers_are_judged_against_her_question(monkeypatch):
+    seen = {}
+
+    async def fake_ask(schema, effort, max_tokens, content, timeout, model=None, system=None):
+        seen.update(system=system, text=content[0]["text"])
+        return {"done": True}
+
+    monkeypatch.setattr(oracle, "_ask", fake_ask)
+    with TestClient(app_module.app) as client:
+        client.post("/api/asked", json={"question": "a dragon", "kid": True, "prompt": "What is your favourite animal?"})
+    assert seen["system"] == oracle.ANSWERED_SYSTEM
+    assert "She asked a child: What is your favourite animal?" in seen["text"] and "<heard>a dragon</heard>" in seen["text"]
+
+
+def test_tarot_fortune_is_read_card_by_card(monkeypatch):
+    seen = {}
+
+    async def fake_ask(schema, effort, max_tokens, content, timeout):
+        seen.update(schema=schema, text=content[1]["text"])
+        return {**PIRATE, "past": "The Tower... it fell.", "present": "The Star... hope.", "future": "The Sun... gold."}
+
+    monkeypatch.setattr(oracle, "_ask", fake_ask)
+    talk = [{"she": "Heart or coin?", "guest": "coin"}]
+    f = asyncio.run(oracle.fortune("x" * 200, "adult", "a pirate", [], question="Rich?", talk=talk,
+                                   cards=["The Tower", "The Star", "The Sun"]))
+    assert seen["schema"] is oracle.TAROT_SCHEMA
+    assert "three tarot cards they drew (past: The Tower, present: The Star, future: The Sun)" in seen["text"]
+    assert "<answer>coin</answer>" in seen["text"]
+    assert f.cards == ["The Tower", "The Star", "The Sun"]
+    assert f.readings == ["The Tower... it fell.", "The Star... hope.", "The Sun... gold."]
+
+    # no spread (or a scary card for a kid): the old single fortune from a random sign
+    f = asyncio.run(oracle.fortune("x" * 200, "child", "a fairy", [], cards=["Death", "The Star", "The Sun"]))
+    assert seen["schema"] is oracle.FORTUNE_SCHEMA and f.cards == [] and f.readings == []
+
+
+def test_tarot_reading_is_voiced_per_card(monkeypatch):
+    async def fake_fortune(image, audience, costume, recent, **kw):
+        assert kw["cards"] == ["The Fool", "The Moon", "The World"] and kw["talk"] == [{"she": "Why?", "guest": "because"}]
+        return Fortune(**PIRATE, cards=kw["cards"], readings=["one", "two", "three"])
+
+    monkeypatch.setattr(app_module.oracle, "fortune", fake_fortune)
+    with TestClient(app_module.app) as client:
+        body = {"image": FAKE_JPEG, "audience": "adult", "cards": ["The Fool", "The Moon", "The World"],
+                "talk": [{"she": "Why?", "guest": "because"}]}
+        f = client.post("/api/fortune", json=body).json()
+        cfg = client.get("/api/config").json()
+    assert len(f["readings_audio"]) == 3 and all(a.startswith("/api/audio/") for a in f["readings_audio"])
+    assert cfg["tarot"] is True and cfg["follow_up"] is True
+    assert len(cfg["deck"]["adult"]) == 22 and "Death" not in [c["name"] for c in cfg["deck"]["child"]]
+
+
+def test_every_card_has_its_picture():
+    from server import config, variety
+
+    for name in variety.TAROT:
+        assert (config.ROOT / "static" / variety.card_image(name).lstrip("/")).is_file(), name
+
+
+def test_ticket_lists_the_cards_drawn():
+    f = Fortune(**PIRATE, question="Rich?", cards=["Wheel of Fortune", "The Hanged Man", "Judgement"])
+    for width in (32, 48):
+        lines = printer.card_lines(f, width)
+        assert "Your cards:" in lines and "Past: Wheel of Fortune" in lines and "Future: Judgement" in lines
+        assert all(len(line) <= width for line in lines)
+
+
+def test_spend_report_counts_her_questions_and_every_card(monkeypatch, tmp_path):
+    monkeypatch.setattr(oracle.config, "HISTORY_DIR", tmp_path / "history")
+    resp = types.SimpleNamespace(model="claude-haiku-5-5", stop_reason="end_turn",
+                                 usage=types.SimpleNamespace(input_tokens=0, output_tokens=0))
+    history.record("probe", model="claude-haiku-5-5", effort="low", system="", content=[], started=1793336254.0,
+                   response=resp, output={"line": "q" * 40})
+    history.record("fortune", model="claude-haiku-5-5", effort="low", system="", content=[], started=1793336254.0,
+                   response=resp, output={"spoken": "s" * 10, "past": "a" * 10, "present": "b" * 10, "future": "c" * 10})
+    with TestClient(app_module.app) as c:
+        rows = {row["stage"]: row for row in c.get("/api/spend").json()["rows"]}
+    assert rows["probe"]["calls"] == 1 and rows["voice_probe"]["chars"] == 40
+    assert rows["voice_fortune"]["chars"] == 43  # the three cards and the close, joined by spaces
