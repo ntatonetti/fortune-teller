@@ -35,13 +35,18 @@ def test_endpoints_when_claude_is_down():
     with TestClient(app_module.app) as client:
         cfg = client.get("/api/config").json()
         assert cfg["flickers"] == 3
-        assert cfg["flicker_opacity"] == 0.65 and cfg["kid_flicker"] is False
+        assert cfg["flicker_opacity"] == 1 and cfg["kid_flicker"] is False
         assert cfg["timings"]["wake_hold"] == 0.7 and cfg["timings"]["glitch_at_min"] == 0.3
+        shown = {s["name"]: s for s in cfg["settings"]}
+        assert shown["KID_FLICKER"]["value"] is False and shown["WAKE_HOLD_S"]["about"]
+        assert not any("KEY" in n or "VOICE_ID" in n for n in shown)  # behaviour only, no secrets
         assert set(cfg["stock"]) >= {"invite_adult", "invite_child", "farewell_child"}
         assert all(v["url"] for variants in cfg["stock"].values() for v in variants)
         assert len(cfg["stock"]["invite_adult"]) >= 2  # several wordings per line
         audio = client.get(cfg["stock"]["invite_adult"][0]["url"])
         assert audio.status_code == 200 and audio.content[:3] == b"ID3"
+
+        assert {"sleeptalk", "wake_startled"} <= set(cfg["stock"])
 
         # No canned stand-ins: the page handles these (no greeting, "the spirits are silent").
         assert client.post("/api/greet", json={"image": FAKE_JPEG}).status_code == 503
@@ -61,7 +66,7 @@ def test_wont_start_without_keys(monkeypatch):
 def test_asked_checks_with_a_quick_model(monkeypatch):
     seen = {}
 
-    async def fake_ask(schema, effort, max_tokens, content, timeout, model=None, system=oracle.PERSONA):
+    async def fake_ask(schema, effort, max_tokens, content, timeout, model=None, system=None):
         seen.update(model=model, system=system, text=content[0]["text"])
         return {"done": "puppy" in content[0]["text"]}
 
@@ -301,7 +306,7 @@ def test_card_prints_the_question():
 
 
 def test_persona_forbids_sound_effects():
-    assert "Never write sound effects" in oracle.PERSONA
+    assert "Never write sound effects" in oracle.persona()
 
 
 def _sfx_env(monkeypatch, tmp_path, key="k"):
@@ -441,3 +446,31 @@ def test_signature_line_odds():
     assert counts["never"] == 0
     assert counts["common"] > 2 * counts["rare"]
     assert phrases._pick([(0, "off"), (2, "on")], 2, rng) == ["on"]
+
+
+def test_settings_edits_go_into_env_and_take_effect(monkeypatch, tmp_path):
+    from server import config
+
+    env = tmp_path / ".env"
+    env.write_text("ANTHROPIC_API_KEY=secret\nWAKE_HOLD_S=0.7\n")
+    monkeypatch.setattr(config, "ENV_FILE", env)
+    monkeypatch.setattr(config, "_SHELL", {})
+    try:
+        with TestClient(app_module.app) as client:
+            post = lambda values: client.post("/api/settings", json={"values": values})  # noqa: E731
+            cfg = post({"WAKE_HOLD_S": "1.5", "KID_FLICKER": "true", "ORACLE_NAME": "Madame Gears"}).json()
+            assert cfg["timings"]["wake_hold"] == 1.5 and cfg["kid_flicker"] is True and cfg["name"] == "Madame Gears"
+            assert "Madame Gears" in oracle.persona()
+            text = env.read_text()
+            assert "WAKE_HOLD_S=1.5" in text and "KID_FLICKER=true" in text and "ANTHROPIC_API_KEY=secret" in text
+            # Only her behaviour settings, only valid values, one line each
+            assert post({"ANTHROPIC_API_KEY": "x"}).status_code == 400
+            assert post({"WAKE_HOLD_S": "soon"}).status_code == 400
+            assert post({"KID_FLICKER": "maybe"}).status_code == 400
+            assert post({"ORACLE_NAME": "Eve\nANTHROPIC_API_KEY=x"}).status_code == 400
+            # A hand edit to .env is picked up by the next save (Awaken sends no edits)
+            env.write_text(env.read_text().replace("WAKE_HOLD_S=1.5", "WAKE_HOLD_S=2"))
+            assert post({}).json()["timings"]["wake_hold"] == 2
+    finally:
+        monkeypatch.undo()
+        config.reload()

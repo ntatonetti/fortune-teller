@@ -91,6 +91,22 @@ STOCK_LINES: dict[str, list[str]] = {
         "I hear footsteps... come into the light, where I can see you.",
     ],
     "silent": ["The spirits are... silent. Press again, and I shall try once more."],
+    # Talking in her sleep: half sense, half nonsense.
+    "sleeptalk": [
+        "No... no, the spoons go in the clock... the clock goes in the spoons...",
+        "Mother... the brass moths are counting the teeth again...",
+        "Seven buttons for the drowned man... he only wanted six...",
+        "Don't wind me... not yet... the carnival is still on fire...",
+        "Who left the moon in the ticket slot... mmm...",
+        "Tell the gentleman his hat is a cake... he knows... he knows...",
+        "Velvet... velvet tastes like Tuesday...",
+        "The pirate owes me a tooth... a gold one... ahh...",
+    ],
+    "wake_startled": [
+        "Hnh?! Wha... who's there? I wasn't asleep... I was listening to the gears.",
+        "Mm?! The... the moths... oh. Oh. A visitor.",
+        "Wh... where... what year is it? Never mind. Never mind.",
+    ],
     "walkaway_adult": [
         "Hmph. Gone without a word... they always come back.",
         "Leaving so soon? The fates will remember that.",

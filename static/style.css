@@ -190,7 +190,7 @@ body.mirror #show {
 }
 
 #setup .card {
-  width: min(560px, 90vw);
+  width: min(760px, 94vw);
   padding: 32px 36px;
   border: 2px solid var(--gold-dim);
   background: rgba(0, 0, 0, 0.6);
@@ -229,6 +229,112 @@ body.mirror #show {
   border: 1px solid var(--gold-dim);
   border-radius: 4px;
   cursor: pointer;
+}
+
+#settings {
+  margin: 0 0 24px;
+  text-align: left;
+}
+
+#settings h2 {
+  margin: 0;
+  font: 20px var(--oracle-font);
+  letter-spacing: 0.06em;
+}
+
+#settings .note {
+  margin: 2px 0 10px;
+  font: italic 14px Palatino, Georgia, serif;
+  color: #a98;
+}
+
+#settingsList {
+  max-height: 34vh;
+  overflow-y: auto;
+  padding: 0 10px 10px 0;
+  border-top: 1px solid var(--gold-dim);
+  border-bottom: 1px solid var(--gold-dim);
+  scrollbar-color: var(--gold-dim) transparent;
+}
+
+#settingsList:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+
+#settingsList h3 {
+  margin: 14px 0 4px;
+  font: 16px var(--oracle-font);
+  color: var(--gold-dim);
+}
+
+#settingsList .row {
+  display: grid;
+  grid-template-columns: 13.5em 13em 1fr;
+  gap: 12px;
+  align-items: baseline;
+  margin: 0;
+  padding: 3px 0;
+  border-bottom: 1px dotted rgba(138, 106, 42, 0.35);
+}
+
+#settingsList code {
+  font: 12px ui-monospace, Menlo, monospace;
+  color: var(--gold);
+  overflow-wrap: anywhere;
+}
+
+#settingsList .value {
+  font: 12px ui-monospace, Menlo, monospace;
+  color: #a98;
+  white-space: nowrap;
+}
+
+#settingsList input[type="text"] {
+  width: 6em;
+  padding: 2px 4px;
+  font: 12px ui-monospace, Menlo, monospace;
+  color: #f2e6c9;
+  background: #140608;
+  border: 1px solid #4a3614;
+  border-radius: 3px;
+}
+
+#settingsList input.words {
+  width: 100%;
+}
+
+#settingsList input:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 1px;
+  border-color: var(--gold);
+}
+
+#settingsList input[type="checkbox"] {
+  accent-color: var(--gold);
+  width: 15px;
+  height: 15px;
+  margin: 0;
+}
+
+#settingsError {
+  margin: 8px 0 0;
+  font: 13px ui-monospace, Menlo, monospace;
+  color: #f08a7a;
+}
+
+#settingsList .about {
+  font: italic 14px/1.35 Palatino, Georgia, serif;
+  color: #a98;
+}
+
+@media (max-width: 620px) {
+  #settingsList .row {
+    grid-template-columns: 1fr auto;
+  }
+  #settingsList .about {
+    grid-column: 1 / -1;
+  }
 }
 
 #setup label {

@@ -38,10 +38,9 @@ function affine3([s0, s1, s2], [d0, d1, d2]) {
 
 // The guest's face (a camera crop and its face mesh) cut into the triangles of
 // hers, each stretched onto her photograph: their eyes, nose and mouth all land on
-// hers, at the cost of a little skew. Their light and shade is matched to her
-// face's (same brightness and contrast), the edge fades well inside her outline,
-// and it is drawn in "luminosity" so her skin keeps its colour. Returned with
-// where it sits on her photo.
+// hers, at the cost of a little skew. Colour-graded to her photo's light so it
+// sits in her picture, and covering her face out to its outline with only a
+// thin soft edge. Returned with where it sits on her photo.
 function warpOntoHer(crop, mesh, photo) {
   const xs = HER.map((p) => p[0]);
   const ys = HER.map((p) => p[1]);
@@ -50,12 +49,6 @@ function warpOntoHer(crop, mesh, photo) {
   const cv = document.createElement("canvas");
   cv.width = Math.ceil(Math.max(...xs)) + 2 - x0;
   cv.height = Math.ceil(Math.max(...ys)) + 2 - y0;
-  const gray = document.createElement("canvas");
-  gray.width = crop.width;
-  gray.height = crop.height;
-  const t = gray.getContext("2d");
-  t.filter = "grayscale(1)";
-  t.drawImage(crop, 0, 0);
   const c = cv.getContext("2d", { willReadFrequently: true });
   const her = HER.map(([x, y]) => ({ x: x - x0, y: y - y0 }));
   const theirs = IDX.map((i) => mesh[i]);
@@ -74,24 +67,25 @@ function warpOntoHer(crop, mesh, photo) {
     }
     c.clip();
     c.transform(...m);
-    c.drawImage(gray, 0, 0);
+    c.drawImage(crop, 0, 0);
     c.restore();
   }
-  matchLight(c, photo, x0, y0);
-  // a wide soft edge well inside her face's outline, so it melts into her
+  matchColour(c, photo, x0, y0);
+  // a thin soft edge at her face's outline
   const rim = her.slice(0, OUTLINE);
   const mx = rim.reduce((a, p) => a + p.x, 0) / rim.length;
   const my = rim.reduce((a, p) => a + p.y, 0) / rim.length;
   c.globalCompositeOperation = "destination-in";
-  c.filter = "blur(12px)";
+  c.filter = "blur(4px)";
   c.beginPath();
-  for (const p of rim) c.lineTo(mx + (p.x - mx) * 0.88, my + (p.y - my) * 0.88);
+  for (const p of rim) c.lineTo(mx + (p.x - mx) * 0.985, my + (p.y - my) * 0.985);
   c.fill();
   return { canvas: cv, x: x0, y: y0 };
 }
 
-// Shift the warped face's brightness and contrast to match her photo under it.
-function matchLight(c, photo, x0, y0) {
+// Grade the warped face to her photo under it: brightness and contrast matched,
+// and its colour pulled to her skin's, so a webcam's light and cast take on hers.
+function matchColour(c, photo, x0, y0) {
   const { width: w, height: h } = c.canvas;
   const under = document.createElement("canvas");
   under.width = w;
@@ -101,21 +95,37 @@ function matchLight(c, photo, x0, y0) {
   const theirs = c.getImageData(0, 0, w, h);
   const hers = u.getImageData(0, 0, w, h).data;
   const px = theirs.data;
-  const lum = (d, i) => 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
-  let n = 0, st = 0, st2 = 0, sh = 0, sh2 = 0;
+  // brightness and two colour axes (YCbCr)
+  const ycc = (d, i) => [
+    0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2],
+    -0.169 * d[i] - 0.331 * d[i + 1] + 0.5 * d[i + 2],
+    0.5 * d[i] - 0.419 * d[i + 1] - 0.081 * d[i + 2],
+  ];
+  const sum = new Array(12).fill(0); // theirs, theirs², hers, hers² per axis
+  let n = 0;
   for (let i = 0; i < px.length; i += 4) {
     if (px[i + 3] < 250) continue;
-    const a = lum(px, i);
-    const b = lum(hers, i);
-    n++; st += a; st2 += a * a; sh += b; sh2 += b * b;
+    n++;
+    const [a, b] = [ycc(px, i), ycc(hers, i)];
+    for (let ax = 0; ax < 3; ax++) {
+      sum[ax] += a[ax];
+      sum[3 + ax] += a[ax] * a[ax];
+      sum[6 + ax] += b[ax];
+      sum[9 + ax] += b[ax] * b[ax];
+    }
   }
   if (n < 100) return;
-  const [mt, mh] = [st / n, sh / n];
-  const sdT = Math.sqrt(Math.max(1, st2 / n - mt * mt));
-  const sdH = Math.sqrt(Math.max(1, sh2 / n - mh * mh));
+  const grade = [0, 1, 2].map((ax) => {
+    const [mt, mh] = [sum[ax] / n, sum[6 + ax] / n];
+    const sdT = Math.sqrt(Math.max(1, sum[3 + ax] / n - mt * mt));
+    const sdH = Math.sqrt(Math.max(1, sum[9 + ax] / n - mh * mh));
+    return [mt, Math.min(2, sdH / sdT), mh];
+  });
   for (let i = 0; i < px.length; i += 4) {
-    const v = (lum(px, i) - mt) * (sdH / sdT) + mh;
-    px[i] = px[i + 1] = px[i + 2] = v;
+    const [y, cb, cr] = ycc(px, i).map((v, ax) => (v - grade[ax][0]) * grade[ax][1] + grade[ax][2]);
+    px[i] = y + 1.402 * cr;
+    px[i + 1] = y - 0.344 * cb - 0.714 * cr;
+    px[i + 2] = y + 1.772 * cb;
   }
   c.putImageData(theirs, 0, 0);
 }
@@ -157,7 +167,7 @@ export class Puppet {
     this.guestFace = null; // the guest's face, toned like a spirit photograph
     this.flicker = false; // while consulting: her face and the guest's trade places
     this._guestShown = 0; // 0 her; guestAlpha while the guest's face shows over hers
-    this.guestAlpha = 0.65; // how solid their face is over hers (FLICKER_OPACITY in .env)
+    this.guestAlpha = 1; // how solid their face is over hers (FLICKER_OPACITY in .env)
     this._flickerHold = 0;
     this.flickers = 3; // glimpses of the guest per consult (FACE_FLICKERS in .env)
     this._flickers = 0; // glimpses so far this consult
@@ -366,11 +376,9 @@ export class Puppet {
     this._ballGlow(b.x, b.y, BALL.r * k, time);
     const g = this._guestWarp;
     if (this._guestShown && g) {
-      // the guest's face warped onto hers: their shading, her colour
+      // the guest's face warped over hers
       c.globalAlpha = this._guestShown;
-      c.globalCompositeOperation = "luminosity";
       c.drawImage(g.canvas, ox + g.x * k, oy + g.y * k, g.canvas.width * k, g.canvas.height * k);
-      c.globalCompositeOperation = "source-over";
       c.globalAlpha = 1;
     } else if (this._guestShown && this._guestSoft) {
       // no face mesh: just their eyes and mouth on hers
@@ -1001,7 +1009,6 @@ export class Puppet {
         const g = this._guestWarp;
         if (this._guestShown && g) {
           c.globalAlpha = this._guestShown;
-          c.globalCompositeOperation = "luminosity";
           c.drawImage(g.canvas, g.x, g.y);
         }
         c.restore();

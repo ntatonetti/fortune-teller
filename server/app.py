@@ -2,6 +2,7 @@ import asyncio
 import logging
 from contextlib import asynccontextmanager
 
+from dotenv import set_key
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -71,6 +72,7 @@ async def get_config():
         "flicker_opacity": config.FLICKER_OPACITY,
         "kid_flicker": config.KID_FLICKER,
         "timings": config.TIMINGS,
+        "settings": [{"section": s, "name": n, "value": v, "about": a} for s, n, v, a in config.SETTINGS],
         "guests": guests.count(),
         "stock": {
             k: [{"url": _audio_url(name), "text": text} for name, text in zip(names, voice.STOCK_LINES[k])]
@@ -78,6 +80,31 @@ async def get_config():
         },
         "sfx": sfx.available(),
     }
+
+
+class Edits(BaseModel):
+    values: dict[str, str] = {}
+
+
+@app.post("/api/settings")
+async def save_settings(edits: Edits):
+    """Writes edited settings into .env, then re-reads .env (hand edits too), so
+    the session about to start runs on them without a restart."""
+    for name, raw in edits.values.items():
+        if name not in config.CASTS:
+            raise HTTPException(400, f"{name} isn't a setting she has")
+        try:
+            if "\n" in raw or "\r" in raw:
+                raise ValueError
+            config._cast(raw, config.CASTS[name])
+        except ValueError:
+            raise HTTPException(400, f"{name}: {raw!r} isn't a valid value")
+    for name, raw in edits.values.items():
+        set_key(config.ENV_FILE, name, raw.strip(), quote_mode="auto" if config.CASTS[name] is str else "never")
+        log.info("setting %s=%s", name, raw.strip())
+    config.reload()
+    guests.max_age_s = config.MEMORY_MAX_AGE_H * 3600
+    return await get_config()
 
 
 @app.post("/api/greet")

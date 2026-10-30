@@ -60,6 +60,10 @@ let nearSince = 0;
 let farSince = 0;
 let lastBeckon = 0;
 let nextTwitch = performance.now() + 8000;
+let sleepTalk = null; // what she's mumbling in her sleep, if anything
+let nextSleepTalk = 0;
+let dazedUntil = 0; // woken with a start: looking about, not at them yet
+let faceSince = 0; // asleep: when the face in view first appeared
 let forceGlitch = false;
 let speaking = null; // current voice controller
 let subtitle = { words: [], ctrl: null };
@@ -287,6 +291,25 @@ async function session(opts = {}) {
   }
 }
 
+// Snorted awake: she looks about, blinks, mutters, then finds them.
+async function wakeStartled() {
+  dazedUntil = performance.now() + ms("wake_dazed") + 4000; // the mutter ends it sooner
+  sound.snort();
+  puppet.set({ brow: 1, eyeX: 0, turn: 0, tilt: -6 });
+  const looks = [-0.8, 0.7, -0.3];
+  const each = ms("wake_dazed") / (looks.length + 1);
+  for (const x of looks) {
+    await wait(each);
+    puppet.set({ eyeX: x, eyeY: -0.2, turn: x * 0.5, tilt: x * 6, lidL: 0.6, lidR: 0.8 });
+  }
+  await wait(each / 2);
+  puppet.set({ lidL: 0.1, lidR: 0.1 }); // a slow blink
+  await wait(each / 2);
+  puppet.set({ lidL: 1, lidR: 1, tilt: 0 });
+  await sayStock("wake_startled");
+  dazedUntil = 0;
+}
+
 // They left mid-reading (or something broke): stop everything and go to sleep.
 async function shutDown(walked) {
   state = "farewell"; // out of the reading, so the grumble isn't itself cut off
@@ -306,6 +329,7 @@ async function shutDown(walked) {
 
 async function runReading({ paid = false } = {}) {
   state = "wake";
+  stopSleepTalk();
   setPrompt("");
   sound.musicBox(false);
   sound.grind(1.5);
@@ -320,6 +344,7 @@ async function runReading({ paid = false } = {}) {
   const [greet] = await Promise.all([
     shot ? api("/api/greet", { image: shot, max_words: maxWords }).catch((e) => (console.warn(e), null)) : null,
     wait(ms("wake_pause")),
+    Math.random() < T.wake_startle ? wakeStartled() : null,
   ]);
   stillHere();
 
@@ -447,6 +472,7 @@ async function sleepAgain() {
   state = "sleep";
   needsAbsence = true;
   farewellAt = performance.now();
+  nextSleepTalk = farewellAt + (T.sleep_talk > 0 ? sleepTalkGap(4) : 0);
   nearSince = 0;
   farSince = 0;
   setPrompt("✦ approach the glass ✦");
@@ -496,6 +522,16 @@ function sleepLogic(now) {
     puppet.set({ lidR: 0, lidL: 0, eyeX: 0, eyeY: 0, turn: 0, tilt: 0 });
   }
 
+  // Talk in her sleep while no one is about; hush once someone is (a face for a
+  // moment, not a stray flicker of detection).
+  if (face) {
+    faceSince ||= now;
+    if (now - faceSince > 300) stopSleepTalk();
+  } else {
+    faceSince = 0;
+    if (!sleepTalk && T.sleep_talk > 0 && now > nextSleepTalk) talkInSleep();
+  }
+
   // Twitch in her sleep now and then.
   if (now > nextTwitch) {
     nextTwitch = now + between(ms("twitch_min"), ms("twitch_max"));
@@ -503,6 +539,32 @@ function sleepLogic(now) {
     puppet.set({ tilt: (Math.random() - 0.5) * 10 });
     setTimeout(() => state === "sleep" && puppet.set({ tilt: 0 }), ms("twitch_hold"));
   }
+}
+
+// The quiet gap after sleep talk that lasted `seconds`, so she talks for about
+// SLEEP_TALK of the time she's alone.
+const sleepTalkGap = (seconds) => seconds * 1000 * (1 / T.sleep_talk - 1) * between(0.5, 1.5);
+
+async function talkInSleep() {
+  const lines = server.stock?.sleeptalk || [];
+  const line = lines[Math.floor(Math.random() * lines.length)];
+  const claim = (sleepTalk = {});
+  const talk = line?.url ? await sound.sleepTalk(line.url, Math.random() < T.sleep_mumble).catch(() => null) : null;
+  if (!talk) {
+    if (sleepTalk === claim) sleepTalk = null;
+    nextSleepTalk = performance.now() + sleepTalkGap(4);
+    return;
+  }
+  if (sleepTalk !== claim || state !== "sleep") return talk.stop(); // hushed while it loaded
+  sleepTalk = talk;
+  await talk.done;
+  if (sleepTalk === talk) sleepTalk = null;
+  nextSleepTalk = performance.now() + sleepTalkGap(talk.duration);
+}
+
+function stopSleepTalk() {
+  sleepTalk?.stop?.();
+  sleepTalk = null;
 }
 
 let padWasDown = false;
@@ -554,7 +616,7 @@ function frame(now) {
     if (watcher.nearest) {
       lastFaceAt = now;
       seenThisSession = true;
-      if (state !== "consult") lookAt(watcher.nearest, now);
+      if (state !== "consult" && now > dazedUntil) lookAt(watcher.nearest, now);
     }
     const away = now - lastFaceAt;
     if (seenThisSession && !walkedAway && settings.walkAwayS > 0 && away > settings.walkAwayS * 1000) {
@@ -656,15 +718,20 @@ window.addEventListener("keydown", (e) => {
   }
 });
 
+// The server's settings, into her.
+function applyServer() {
+  puppet.flickers = server.flickers ?? 3;
+  puppet.guestAlpha = server.flicker_opacity ?? 1;
+  if (server.timings) puppet.timing = T = server.timings;
+}
+
 async function refreshServer() {
   try {
     server = await api("/api/config");
   } catch {
     server = { stock: {}, printer: "?" };
   }
-  puppet.flickers = server.flickers ?? 3;
-  puppet.guestAlpha = server.flicker_opacity ?? 0.65;
-  if (server.timings) puppet.timing = T = server.timings;
+  applyServer();
   document.title = server.name || "The Oracle";
   $("title").textContent = server.name || "The Oracle";
   const st = $("status");
@@ -695,6 +762,83 @@ async function refreshServer() {
     mem.appendChild(btn);
   }
   st.appendChild(mem);
+  showSettings(server.settings || []);
+}
+
+// Every .env setting that changes how she behaves: its value, editable, and
+// what it does. Edits are saved into .env when she's awakened.
+function showSettings(list) {
+  const box = $("settingsList");
+  box.innerHTML = "";
+  let section = null;
+  for (const { section: sec, name, value, about } of list) {
+    if (sec !== section) {
+      section = sec;
+      const h = document.createElement("h3");
+      h.textContent = sec;
+      box.appendChild(h);
+    }
+    const row = document.createElement("label");
+    row.className = "row";
+    const code = document.createElement("code");
+    code.textContent = name;
+    const cell = document.createElement("span");
+    cell.className = "value";
+    const input = document.createElement("input");
+    input.name = name;
+    if (typeof value === "boolean") {
+      input.type = "checkbox";
+      input.checked = value;
+    } else {
+      input.type = "text";
+      input.spellcheck = false;
+      if (typeof value === "number") input.inputMode = "decimal";
+      else input.className = "words";
+      input.value = String(value);
+    }
+    input.dataset.was = typeof value === "boolean" ? String(value) : input.value;
+    cell.appendChild(input);
+    const unit = name.endsWith("_S") ? "s" : name.endsWith("_H") ? "h" : "";
+    if (unit) cell.append(` ${unit}`);
+    const what = document.createElement("span");
+    what.className = "about";
+    what.textContent = about;
+    row.append(code, cell, what);
+    box.appendChild(row);
+  }
+  $("settings").hidden = !list.length;
+}
+
+// The settings changed on the start screen, as {NAME: "text"}.
+function editedSettings() {
+  const out = {};
+  for (const input of $("settingsList").querySelectorAll("input")) {
+    const now = input.type === "checkbox" ? String(input.checked) : input.value.trim();
+    if (now !== input.dataset.was) out[input.name] = now;
+  }
+  return out;
+}
+
+// Save the start screen's edits into .env and reload every setting (hand edits
+// to .env too), so this session runs on them. False if one was refused.
+async function saveSettings() {
+  const res = await fetch("/api/settings", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ values: editedSettings() }),
+  }).catch(() => null);
+  if (!res) return true; // server unreachable: carry on with what she has
+  if (!res.ok) {
+    const { detail } = await res.json().catch(() => ({}));
+    $("settingsError").textContent = `Not saved: ${detail || res.status}`;
+    $("settingsError").hidden = false;
+    return false;
+  }
+  $("settingsError").hidden = true;
+  server = await res.json();
+  applyServer();
+  showSettings(server.settings || []);
+  return true;
 }
 
 async function fillCameras() {
@@ -725,6 +869,7 @@ function openSetup() {
 }
 
 async function begin() {
+  if (!(await saveSettings())) return;
   if (state === "boot") document.documentElement.requestFullscreen?.().catch(() => {});
   settings.cameraId = $("cameraSelect").value;
   settings.display = $("displaySelect").value;
