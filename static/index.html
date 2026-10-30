@@ -72,6 +72,12 @@
       <div class="card">
         <h1>The Clockwork Oracle</h1>
         <ul id="status"></ul>
+        <section id="settings" aria-labelledby="settingsTitle">
+          <h2 id="settingsTitle">How she behaves</h2>
+          <p class="note">Saved into .env when you awaken her. Edits made in .env by hand load then too. Slide a number or type it; a typed number can go past the slider.</p>
+          <div id="settingsList" tabindex="0"></div>
+          <p id="settingsError" role="alert" hidden></p>
+        </section>
         <label>Camera <select id="cameraSelect"></select></label>
         <label
           >Display

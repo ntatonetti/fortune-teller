@@ -2,7 +2,7 @@
 
 An AI fortune-teller booth for a Halloween party. A projected 1920s carnival automaton sleeps behind the glass until someone walks up. Then she creaks awake, notices their costume, takes payment (a pirate's gold coin, or a whispered secret), listens to the question they bring to the fates, and answers it with a fortune about *them*. At the end a receipt printer spits out a fortune ticket.
 
-The body is deliberately mechanical: the head, eyes, and lids move on a choppy 12 fps "servo" tick, and the jaw is a ventriloquist-dummy hinge driven by the loudness of her voice. The words are not mechanical at all, because Claude is looking at the guest through the camera. That mismatch is the uncanny part.
+She is a photograph of a grandmother at her table: crystal ball, cards, candles, marionette seams down her chin. The face is deliberately mechanical: her eyes and mouth change between still frames on a choppy 12 fps "servo" tick, the mouth opening wider the louder her voice, and her head never moves (she can be projected onto a mannequin's head): asleep, her light is just turned down. The words are not mechanical at all, because Claude is looking at the guest through the camera. That mismatch is the uncanny part.
 
 - **Adults** get spooky, wry, PG-13 readings, sometimes with a mid-sentence mechanical seizure. She remembers earlier guests by costume and weaves them in ("Beware the pirate...").
 - **Kids**: if Claude sees a child (or isn't sure), she becomes a twinkly grandmother: whimsical, warm, nothing scary. Once a child is seen at the greeting, the whole reading stays in kid mode.
@@ -13,25 +13,32 @@ The body is deliberately mechanical: the head, eyes, and lids move on a choppy 1
 ```bash
 python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt
-./scripts/fetch_vendor.sh          # face-detection runtime, so the booth works offline
-cp .env.example .env               # then fill in keys (all optional)
+cp .env.example .env               # then fill in the Claude and ElevenLabs keys
 .venv/bin/python -m server
 ```
 
 Open **http://localhost:8000** in Chrome. Pick the camera, click **Awaken the Oracle**, and press **H** for the key list.
 
-With no keys at all she still runs, using canned fortunes and the built-in macOS "Grandma" voice. That's handy for testing and is also the automatic fallback if the party Wi-Fi drops.
+She needs the internet: Claude for every word she says about a guest, ElevenLabs for her voice, Chrome's speech recognition for her ears, and the face-detection runtime, which loads from a CDN. The server won't start without the keys. If a call fails mid-party she skips the greeting, or says "the spirits are silent" instead of a fortune.
 
 ### How a reading goes
 
-1. **Asleep:** she's slumped over with a music box playing. If someone lingers at a distance, one eye cracks open and follows them, and now and then she calls "Is someone there? Come closer..."
+1. **Asleep:** her face dims like a turned-down gas lamp, with a music box playing; she stays upright with her eyes open. While no one is about she talks in her sleep about a fifth of the time (`SLEEP_TALK`): half-sense nonsense ("Who left the moon in the ticket slot...") or, half the time (`SLEEP_MUMBLE`), a muffled murmur with no words in it. She hushes the moment anyone appears. If someone lingers at a distance, her eyes follow them, and now and then she calls "Is someone there? Come closer..."
 2. **Wake:** when a face comes close enough for about a second, her gears grind, she sits up, and she greets them by their costume. She also works out whether a child is present.
 3. **Payment:** "A pirate's gold coin, if you have one... drop it in and press the button. If your pockets are empty... whisper me a secret instead."
    - A button press counts as a coin.
    - Two or more spoken words count as a secret. The secret is never saved or sent anywhere, only the fact that one was told, and the screen shows it only as dots.
-4. **Question:** "Now... ask the fates your question." A bell rings, and she listens until they pause, up to 14 seconds. Pressing the button means "that's my question." If they stay silent, she answers "the question you hold in your heart."
-5. **Consult:** the gears spin and the ball swirls. Adults see her eyes roll back; kids see her peer into the ball.
-6. **Fortune:** she answers their question, weaving in their costume, an omen, a lucky number, and a task for the party. The card prints with "You asked: ..." on it. Then she slumps back to sleep, and won't wake again until that person steps away.
+4. **Question:** "Now... ask the fates your question." A bell rings, and she listens patiently, because kids especially stop mid-sentence, say "um", or turn to ask a parent what to ask. A pause only counts once it's long enough: about 2 seconds for adults and 3 for kids, plus 2.5 more if they've said fewer than three words or stopped on a word like "and", "um" or "will". While the camera sees them turned away, or can't see their face at all, the clock stops. At each pause a quick Claude check (Haiku) decides whether they've actually finished asking. If not, she waits up to 6 more seconds for the rest. She gives up after 30 seconds in all. Pressing the button means "that's my question." If they stay silent, she answers "the question you hold in your heart."
+5. **Consult:** the gears spin and the ball swirls. Adults see her eyes roll back; kids see her peer into the ball. Meanwhile, for adults, the guest's own face, caught by the camera and toned like an old spirit photograph, flickers up three times (`FACE_FLICKERS` in `.env`), solid at `FLICKER_OPACITY=1` or half mist at 0.5. `FLICKER_WHERE` (a dropdown on the setup screen) puts it in her crystal ball (`ball`, the default) or over her own face (`face`, warped so their eyes, nose and mouth land on hers). Kids see it too with `KID_FLICKER=true`. If she has a mechanical seizure later, their face stutters again.
+6. **Fortune:** she answers their question, weaving in their costume, an omen, a lucky number, and a task for the party. The card prints with "You asked: ..." on it. Then her light dims again, and she won't wake again until that person steps away.
+
+**Waking with a start:** about a third of the time (`WAKE_STARTLE`) she snorts awake, looks about dazed for a moment (`WAKE_DAZED_S`), and mutters ("Wh... where... what year is it?") before she finds the guest.
+
+**Settings:** everything that changes how she behaves (her name, the Claude model and effort, her voice, her memory, the face flicker, her looks, and every pause, wait and transition above, in seconds) is listed on the setup screen with its value and what it does, and can be edited there. Models, efforts and the voice model are dropdowns. Numbers have a slider over their usual span and a box to type the number in, which can go past the slider. **Awaken the Oracle** saves the edits into `.env` and reloads every setting, including edits made to `.env` by hand, so no restart is needed. `.env.example` lists them too.
+
+**Voices:** the setup screen lists her voices; press **Hear** to listen to one and **Use this voice** to give it to her; the one she uses is marked **In use**. Add a voice with a name and its ElevenLabs voice ID, or remove one; they're kept in `.env` as `VOICES`. The voice she has is always in the list; remove it and she takes the first one left. When you awaken her in a new voice, it's tried first (she won't start in a voice ElevenLabs refuses) and all her stock lines are voiced again in it, which takes a few seconds the first time.
+
+**Her looks:** her photographed eyes follow what she's doing. She looks left, right, up or down when her gaze goes past `LOOK_SIDE`, and glances away now and then while awake (`GLANCE_MIN_S` to `GLANCE_MAX_S`, held for `GLANCE_S`). Her brows go up when she wakes and greets them, her eyes roll back in a trance while she consults an adult (kids see her look down into the ball), and her lids hang half shut when she's startled awake. Her mouth opens no wider than `MOUTH_OPEN` (default 2, the drop to her teeth); the full drop runs off the foam head.
 
 **Walking away:** if every face disappears from the camera for 8 seconds at any point in a reading, she stops mid-sentence, grumbles ("Hmph. Gone without a word..."), and goes back to sleep. If they leave during the fortune, no ticket prints. This only applies once the camera has actually seen the guest, so a dark booth where face detection struggles never cuts a real reading short. Pressing the button or speaking also counts as "still here". **J / K** adjust the 8 seconds, and **D** shows the countdown.
 
@@ -39,21 +46,24 @@ With no keys at all she still runs, using canned fortunes and the built-in macOS
 
 **Keeping her fresh:** every stock line has two or three wordings and never repeats back to back. Each fortune gets a lucky number she hasn't used recently and a random sign to read from (a tarot card, tea leaves, a raven, a cracked mirror and so on), with gentler options for kids. She's also told her recent greetings and fortunes, so she avoids reusing their openings, omens and tasks.
 
+**Her signature lines:** `server/phrases.py` holds wording we wrote for her ("Hold still... the gears are turning for you.", "Go now... before the clockwork changes its mind."). Each greeting is offered three greeting lines and uses one if it fits. Each fortune is offered a few lines for two of its three places (opening, middle, close) and works in two, writing the rest itself. Kids only get the kid lines. Every line has odds in front of it, e.g. `(3, "Mark me well...")`: a 3 is offered three times as often as a 1, and 0 turns a line off. Our classic lines start at 3 and the crazier ones at 1. To change how she talks, edit the lines or their odds and restart the server.
+
 ### Try it without any hardware
 
-- Walk up to the laptop camera. She wakes when your face is close enough, and **[** / **]** adjust how close that is. **D** shows what the camera sees, with face boxes: yellow means seen, green means close enough to wake her.
+- Walk up to the laptop camera. She wakes when your face is close enough, and **[** / **]** adjust how close that is. **D** shows what the camera sees, with face boxes: yellow means seen, green means close enough to wake her. It also shows how far the nearest head is turned; past 0.3 it reads AWAY, and while she's waiting for a question that stops her pause clock.
 - **Space** is the gold coin. **W** wakes her manually. Talk when she asks for a secret or a question; Chrome asks for mic permission once, when you click Awaken.
 - **A** forces adult or child mode, and **G** makes the next adult reading glitch.
+- To test the guest's side without sitting through her full readings, open **http://localhost:8000/?brief**. Her greeting and fortune are then capped at 20 words (`?brief=30` for 30). Her fixed lines and all the timings stay the same. The setting is never saved, so a plain page load is always the full reading.
 - Printed tickets show up in the server terminal until a real printer is connected.
 
 ## Keys and voices
 
-**Claude:** create an API key at console.anthropic.com and set `ANTHROPIC_API_KEY`. The default model is `claude-opus-5-5` at low effort. If greetings feel slow, try `CLAUDE_MODEL=claude-haiku-5-5`. A reading is two calls (greeting and fortune), each with one camera frame, which comes to a few cents per guest on Opus.
+**Claude:** create an API key at console.anthropic.com and set `ANTHROPIC_API_KEY`. The default model is `claude-opus-5-5` at low effort. If greetings feel slow, try `CLAUDE_MODEL=claude-haiku-5-5`. A reading is two calls (greeting and fortune), each with one camera frame, which comes to a few cents per guest on Opus, plus a tiny Haiku call (no image) at each pause while they ask their question.
 
 **ElevenLabs:**
 1. Sign up at elevenlabs.io. Under Developers → API Keys, create a key and set it as `ELEVENLABS_API_KEY`.
 2. Open the Voice Library and search for things like *old witch*, *fortune teller*, *grandmother storyteller*, *raspy*, or *Transylvanian*. Add one you like to your voices.
-3. Open the voice, choose "..." → **Copy voice ID**, and set `ELEVENLABS_VOICE_ID`.
+3. Open the voice, choose "..." → **Copy voice ID**, and set `ELEVENLABS_VOICE_ID`. Add more voices on the setup screen to switch between them.
 
 Each reading is about 500–700 characters of speech. Check that your plan's monthly character quota covers your guest count. The fixed lines are rendered once and cached in `data/tts_cache/`.
 
@@ -120,13 +130,13 @@ In head mode the marquee and subtitles are off, because the projector should onl
 
 ## Privacy
 
-Camera frames go to Claude for the reading and are never saved. Guests' questions go to Claude so she can answer them, and are printed on their card, but they're not stored. Whispered secrets never leave the browser at all. The only thing kept is a one-line costume description per guest in `data/guests.json` (for example "a witch with a crooked broom"), so she can reference earlier guests. To wipe it, press **Esc** for the setup screen and click **Forget everyone**; do this right before the party. You can also run `curl -X DELETE localhost:8000/api/guests` or delete the file. Entries older than 12 hours are forgotten automatically, which you can change with `MEMORY_MAX_AGE_H` in `.env`, so test runs from earlier in the week won't show up. A sign that says "THE ORACLE SEES YOU" is both fun and fair warning.
+Camera frames go to Claude for the reading and are never saved. Guests' questions go to Claude so she can answer them, and are printed on their card, but they're not stored. Whispered secrets never leave the browser at all, and neither does the picture of the guest's face that flickers in her ball or over her face; it's forgotten when she goes back to sleep. The only thing kept is a one-line costume description per guest in `data/guests.json` (for example "a witch with a crooked broom"), so she can reference earlier guests. To wipe it, press **Esc** for the setup screen and click **Forget everyone**; do this right before the party. You can also run `curl -X DELETE localhost:8000/api/guests` or delete the file. Entries older than 12 hours are forgotten automatically, which you can change with `MEMORY_MAX_AGE_H` in `.env`, so test runs from earlier in the week won't show up. A sign that says "THE ORACLE SEES YOU" is both fun and fair warning.
 
 ## Development
 
 ```bash
 .venv/bin/python -m pytest -q        # server tests (no network, no keys needed)
-node --test tests/js/*.test.mjs      # projection-mapping math
+node --test tests/js/*.test.mjs      # projection-mapping math, sounds, and patient listening
 PLAYWRIGHT_BROWSERS_PATH=.venv/ms-playwright .venv/bin/playwright install chromium   # once
 .venv/bin/python scripts/smoke.py    # drives a full reading in headless Chrome, saves screenshots
 HEAD=1 .venv/bin/python scripts/smoke.py   # same in head mode, plus the alignment screen
@@ -135,9 +145,11 @@ WALKAWAY=1 .venv/bin/python scripts/smoke.py   # guest leaves mid-reading (WALKA
 
 Layout:
 - `server/oracle.py`: persona, safety rules, and Claude calls
-- `server/voice.py`: ElevenLabs or `say`, plus the cache
+- `server/phrases.py`: her signature lines, for Claude to choose from
+- `server/voice.py`: ElevenLabs, plus the cache
 - `server/printer.py`: fortune cards
 - `static/js/puppet.js`: the automaton drawing, in screen and head modes
+- `static/js/portrait.js` and `static/img/mechanika/`: her photograph. Every frame is an edit of `base.png` that changes only her face, so its eyes, brows or mouth can be laid over the base: `blink`, `eyes-half`, `look-left`, `look-right`, `look-up`, `look-down` and `trance` for her eyes, `brows-up`, and `mouth-1` to `mouth-3`. (`asleep` and `asleep-peek` aren't used: asleep, she is only dimmed.) Without these files she falls back to the drawn porcelain doll. `forehead.png` is laid over every frame: forehead skin painted over her pendant and the hair above her temples, so only her face lands on the foam head. Rerun `.venv/bin/python scripts/clean_forehead.py` if `base.png` changes, or pass it a copy of `base.png` cleaned up by an image model to use that instead. `static/js/mechanika-mesh.js` holds her face-mesh points (from `scripts/measure_face.py`), for warping a guest's face onto hers with `FLICKER_WHERE=face`.
 - `static/js/headmap.js`, `static/js/homography.js`: head-mode surfaces, corner-pin warp and alignment
 - `static/js/sound.js`: synthesized sound effects and the phonograph chain
 - `static/js/watcher.js`: camera and face detection

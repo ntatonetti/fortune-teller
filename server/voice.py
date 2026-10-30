@@ -1,4 +1,4 @@
-"""Text-to-speech: ElevenLabs when configured, macOS `say` otherwise.
+"""Text-to-speech with ElevenLabs.
 
 Every clip is cached on disk by a hash of (voice, text), so stock lines are only
 paid for once and replays are instant.
@@ -7,8 +7,6 @@ paid for once and replays are instant.
 import asyncio
 import hashlib
 import logging
-import subprocess
-import tempfile
 from pathlib import Path
 
 import httpx
@@ -93,6 +91,22 @@ STOCK_LINES: dict[str, list[str]] = {
         "I hear footsteps... come into the light, where I can see you.",
     ],
     "silent": ["The spirits are... silent. Press again, and I shall try once more."],
+    # Talking in her sleep: half sense, half nonsense.
+    "sleeptalk": [
+        "No... no, the spoons go in the clock... the clock goes in the spoons...",
+        "Mother... the brass moths are counting the teeth again...",
+        "Seven buttons for the drowned man... he only wanted six...",
+        "Don't wind me... not yet... the carnival is still on fire...",
+        "Who left the moon in the ticket slot... mmm...",
+        "Tell the gentleman his hat is a cake... he knows... he knows...",
+        "Velvet... velvet tastes like Tuesday...",
+        "The pirate owes me a tooth... a gold one... ahh...",
+    ],
+    "wake_startled": [
+        "Hnh?! Wha... who's there? I wasn't asleep... I was listening to the gears.",
+        "Mm?! The... the moths... oh. Oh. A visitor.",
+        "Wh... where... what year is it? Never mind. Never mind.",
+    ],
     "walkaway_adult": [
         "Hmph. Gone without a word... they always come back.",
         "Leaving so soon? The fates will remember that.",
@@ -105,12 +119,12 @@ STOCK_LINES: dict[str, list[str]] = {
 }
 
 
-def _use_eleven() -> bool:
-    return bool(config.ELEVENLABS_API_KEY and config.ELEVENLABS_VOICE_ID)
+# Played on the start screen to hear a voice, and voiced to test a new one.
+SAMPLE_LINE = "Come closer, darling... the gears have been waiting for you."
 
 
-def _key(text: str) -> str:
-    voice = f"eleven:{config.ELEVENLABS_VOICE_ID}:{config.ELEVENLABS_MODEL}" if _use_eleven() else f"say:{config.SAY_VOICE}:{config.SAY_RATE}"
+def _key(text: str, voice_id: str, model: str) -> str:
+    voice = f"eleven:{voice_id}:{model}"
     return hashlib.sha256(f"{voice}|{text}".encode()).hexdigest()[:24]
 
 
@@ -122,21 +136,21 @@ def cached_path(name: str) -> Path | None:
 
 
 # ElevenLabs plans cap simultaneous requests (a few at most), so queue ours and
-# retry briefly when told to slow down instead of falling back to the Mac voice.
+# retry briefly when told to slow down.
 _eleven_slots = asyncio.Semaphore(config.ELEVENLABS_CONCURRENCY)
 RETRY_DELAYS_S = (1.0, 2.5)
 
 
-async def _eleven(text: str) -> bytes:
+async def _eleven(text: str, voice_id: str, model: str) -> bytes:
     async with _eleven_slots, httpx.AsyncClient(timeout=20) as client:
         for delay in (*RETRY_DELAYS_S, None):
             r = await client.post(
-                ELEVEN_URL.format(voice_id=config.ELEVENLABS_VOICE_ID),
+                ELEVEN_URL.format(voice_id=voice_id),
                 params={"output_format": "mp3_44100_128"},
                 headers={"xi-api-key": config.ELEVENLABS_API_KEY, "accept": "audio/mpeg"},
                 json={
                     "text": text,
-                    "model_id": config.ELEVENLABS_MODEL,
+                    "model_id": model,
                     "voice_settings": {"stability": 0.45, "similarity_boost": 0.8, "style": 0.35},
                 },
             )
@@ -147,44 +161,21 @@ async def _eleven(text: str) -> bytes:
             return r.content
 
 
-def _say(text: str, out: Path) -> None:
-    with tempfile.NamedTemporaryFile(suffix=".wav", dir=out.parent, delete=False) as tmp:
-        tmp_path = Path(tmp.name)
-    try:
-        subprocess.run(
-            ["say", "-v", config.SAY_VOICE, "-r", str(config.SAY_RATE), "-o", str(tmp_path), "--data-format=LEI16@22050", text],
-            check=True,
-            capture_output=True,
-            timeout=30,
-        )
-        tmp_path.replace(out)
-    finally:
-        tmp_path.unlink(missing_ok=True)
-
-
-async def speak(text: str) -> str | None:
-    """Render `text` to an audio file and return its cache filename (or None)."""
+async def speak(text: str, voice_id: str = "", model: str = "") -> str | None:
+    """Render `text` to an audio file and return its cache filename (or None).
+    In her voice unless another is given."""
+    voice_id = voice_id or config.ELEVENLABS_VOICE_ID
+    model = model or config.ELEVENLABS_MODEL
     config.CACHE_DIR.mkdir(parents=True, exist_ok=True)
-    key = _key(text)
-    if _use_eleven():
-        name = f"{key}.mp3"
-        path = config.CACHE_DIR / name
-        if path.exists():
-            return name
-        try:
-            path.write_bytes(await _eleven(text))
-            return name
-        except (httpx.HTTPError, OSError) as e:
-            log.warning("ElevenLabs failed (%s); falling back to macOS say", e)
-    name = f"{key}.wav"
+    name = f"{_key(text, voice_id, model)}.mp3"
     path = config.CACHE_DIR / name
     if path.exists():
         return name
     try:
-        await asyncio.to_thread(_say, text, path)
+        path.write_bytes(await _eleven(text, voice_id, model))
         return name
-    except (subprocess.SubprocessError, OSError) as e:
-        log.error("macOS say failed: %s", e)
+    except (httpx.HTTPError, OSError) as e:
+        log.error("ElevenLabs failed: %s", e)
         return None
 
 
@@ -197,6 +188,3 @@ async def prewarm() -> dict[str, list[str | None]]:
         out[key].append(name)
     return out
 
-
-def provider() -> str:
-    return "elevenlabs" if _use_eleven() else "macos-say"

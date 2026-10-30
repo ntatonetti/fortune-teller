@@ -2,6 +2,7 @@ import asyncio
 import logging
 from contextlib import asynccontextmanager
 
+from dotenv import set_key
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -20,12 +21,13 @@ stock_audio: dict[str, list[str | None]] = {}
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    missing = [k for k in ("ANTHROPIC_API_KEY", "ELEVENLABS_API_KEY", "ELEVENLABS_VOICE_ID") if not getattr(config, k)]
+    if missing:
+        raise RuntimeError(f"Set {', '.join(missing)} in .env: she needs Claude and ElevenLabs to run")
     stock_audio.update(await voice.prewarm())
     log.info(
-        "Oracle ready: model=%s claude=%s voice=%s sfx=%d clips printer=%s guests_remembered=%d",
+        "Oracle ready: model=%s sfx=%d clips printer=%s guests_remembered=%d",
         config.CLAUDE_MODEL,
-        bool(config.ANTHROPIC_API_KEY),
-        voice.provider(),
         sum(len(urls) for urls in sfx.available().values()),
         config.PRINTER,
         guests.count(),
@@ -36,12 +38,18 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 
 
+class Heard(BaseModel):
+    question: str
+    kid: bool = False
+
+
 class Frame(BaseModel):
     image: str  # base64 JPEG, with or without a data: URL prefix
     audience: str = ""
     costume: str = ""
     question: str = ""
     paid_with: str = ""  # "coin" | "secret" | ""
+    max_words: int = 0  # debug: cap what she says (?brief in the URL); 0 = full length
 
 
 def _b64(image: str) -> str:
@@ -59,9 +67,16 @@ def _audio_url(name: str | None) -> str | None:
 async def get_config():
     return {
         "name": config.ORACLE_NAME,
-        "claude": bool(config.ANTHROPIC_API_KEY),
-        "voice": voice.provider(),
         "printer": config.PRINTER,
+        "flickers": config.FACE_FLICKERS,
+        "flicker_where": config.FLICKER_WHERE,
+        "flicker_opacity": config.FLICKER_OPACITY,
+        "kid_flicker": config.KID_FLICKER,
+        "timings": config.TIMINGS,
+        "settings": [
+            {"section": s, "name": n, "value": v, "about": a, **config.CONTROLS[n]} for s, n, v, a in config.SETTINGS
+        ],
+        "voices": _voices(),
         "guests": guests.count(),
         "stock": {
             k: [{"url": _audio_url(name), "text": text} for name, text in zip(names, voice.STOCK_LINES[k])]
@@ -71,12 +86,83 @@ async def get_config():
     }
 
 
+def _voices() -> list[dict]:
+    """The voices to choose from: VOICES, and the one she has if it isn't there."""
+    listed = list(config.VOICES)
+    if config.ELEVENLABS_VOICE_ID and all(v["id"] != config.ELEVENLABS_VOICE_ID for v in listed):
+        listed.insert(0, {"name": "Original", "id": config.ELEVENLABS_VOICE_ID})
+    return listed
+
+
+class Edits(BaseModel):
+    values: dict[str, str] = {}
+
+
+class VoiceTry(BaseModel):
+    voice_id: str
+
+
+@app.post("/api/voice/sample")
+async def voice_sample(v: VoiceTry):
+    """A line in the given voice, to hear it on the start screen."""
+    try:
+        config.voices(f"x={v.voice_id}")
+    except ValueError:
+        raise HTTPException(400, "that isn't an ElevenLabs voice id")
+    name = await voice.speak(voice.SAMPLE_LINE, voice_id=v.voice_id)
+    if not name:
+        raise HTTPException(502, "ElevenLabs wouldn't voice that one")
+    return {"url": _audio_url(name)}
+
+
+@app.post("/api/settings")
+async def save_settings(edits: Edits):
+    """Writes edited settings into .env, then re-reads .env (hand edits too), so
+    the session about to start runs on them without a restart."""
+    for name, raw in edits.values.items():
+        if name not in config.CASTS:
+            raise HTTPException(400, f"{name} isn't a setting she has")
+        try:
+            if "\n" in raw or "\r" in raw:
+                raise ValueError
+            config.check(name, raw)
+        except ValueError:
+            raise HTTPException(400, f"{name}: {raw!r} isn't a valid value")
+    # A new voice or voice model must work before she's given it.
+    voice_id = edits.values.get("ELEVENLABS_VOICE_ID", config.ELEVENLABS_VOICE_ID).strip()
+    model = edits.values.get("ELEVENLABS_MODEL", config.ELEVENLABS_MODEL).strip()
+    revoice = (voice_id, model) != (config.ELEVENLABS_VOICE_ID, config.ELEVENLABS_MODEL)
+    if revoice and not await voice.speak(voice.SAMPLE_LINE, voice_id=voice_id, model=model):
+        raise HTTPException(400, "ElevenLabs wouldn't use that voice with that model")
+    for name, raw in edits.values.items():
+        quote = "never" if config.CASTS[name] in (int, float, bool) else "auto"
+        set_key(config.ENV_FILE, name, raw.strip(), quote_mode=quote)
+        log.info("setting %s=%s", name, raw.strip())
+    config.reload()
+    guests.max_age_s = config.MEMORY_MAX_AGE_H * 3600
+    if revoice:
+        log.info("voicing her stock lines in the new voice")
+        stock_audio.update(await voice.prewarm())
+    return await get_config()
+
+
 @app.post("/api/greet")
 async def greet(frame: Frame):
-    g = await oracle.greet(_b64(frame.image))
-    log.info("greet: audience=%s size=%d costume=%r source=%s", g.audience, g.group_size, g.costume, g.source)
+    g = await oracle.greet(_b64(frame.image), max_words=frame.max_words)
+    if g is None:
+        raise HTTPException(503, "Claude unavailable")
+    log.info("greet: audience=%s size=%d costume=%r", g.audience, g.group_size, g.costume)
     audio = await voice.speak(g.greeting) if g.audience != "nobody" else None
     return {**g.model_dump(), "audio": _audio_url(audio)}
+
+
+@app.post("/api/asked")
+async def asked(heard: Heard):
+    done = await oracle.asked(heard.question, heard.kid)
+    if done is None:
+        raise HTTPException(503, "Claude unavailable")
+    log.info("asked: %d words, %s", len(heard.question.split()), "finished" if done else "still going")
+    return {"done": done}
 
 
 @app.post("/api/fortune")
@@ -88,17 +174,19 @@ async def fortune(frame: Frame):
         guests.recent(config.MEMORY_RECALL),
         question=frame.question,
         paid_with=frame.paid_with,
+        max_words=frame.max_words,
     )
+    if f is None:
+        raise HTTPException(503, "Claude unavailable")
     log.info(
-        "fortune: audience=%s paid=%s asked=%s title=%r source=%s",
+        "fortune: audience=%s paid=%s asked=%s title=%r",
         f.audience,
         frame.paid_with or "-",
         "yes" if f.question else "no",
         f.card_title,
-        f.source,
     )
     audio = await voice.speak(f.spoken)
-    if f.source == "claude" and f.audience != "nobody":
+    if f.audience != "nobody":
         guests.add(
             f.costume,
             f.audience,
@@ -121,7 +209,7 @@ async def audio(name: str):
     path = voice.cached_path(name)
     if path is None:
         raise HTTPException(404)
-    return FileResponse(path, media_type="audio/mpeg" if path.suffix == ".mp3" else "audio/wav")
+    return FileResponse(path, media_type="audio/mpeg")
 
 
 @app.get("/api/guests")

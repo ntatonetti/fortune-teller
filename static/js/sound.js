@@ -159,6 +159,58 @@ export class Sound {
     };
   }
 
+  // Talking in her sleep: a voice clip, quiet and slow. Muffled, it is only a
+  // murmur, the words lost. Returns { duration, done, stop }.
+  async sleepTalk(url, muffled) {
+    const buf = await this.load(url);
+    if (!buf) return null;
+    const ctx = this.ctx;
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    src.playbackRate.value = muffled ? 0.82 : 0.92;
+    const g = ctx.createGain();
+    g.gain.value = muffled ? 0.7 : 0.5;
+    let out = src;
+    if (muffled) {
+      const lp = ctx.createBiquadFilter();
+      lp.type = "lowpass";
+      lp.frequency.value = 420;
+      lp.Q.value = 0.3;
+      out = src.connect(lp);
+    }
+    out.connect(g).connect(this.voiceIn);
+    const done = new Promise((r) => (src.onended = r));
+    src.start();
+    return { duration: buf.duration / src.playbackRate.value, done, stop: () => src.stop() };
+  }
+
+  // A sleeper's snort: a rattling breath in through the nose, through her voice box.
+  snort() {
+    const ctx = this.ctx;
+    const t = ctx.currentTime;
+    const src = this._noiseSrc();
+    const bp = ctx.createBiquadFilter();
+    bp.type = "bandpass";
+    bp.frequency.setValueAtTime(260, t);
+    bp.frequency.linearRampToValueAtTime(520, t + 0.32);
+    bp.Q.value = 2.5;
+    const g = ctx.createGain();
+    this._env(g, t, 0.05, 0.22, 0.12, 1.4);
+    // the soft palate fluttering
+    const flutter = ctx.createGain();
+    flutter.gain.value = 0.5;
+    const lfo = ctx.createOscillator();
+    lfo.frequency.value = 32;
+    const depth = ctx.createGain();
+    depth.gain.value = 0.5;
+    lfo.connect(depth).connect(flutter.gain);
+    src.connect(bp).connect(flutter).connect(g).connect(this.voiceIn);
+    src.start(t);
+    lfo.start(t);
+    src.stop(t + 0.5);
+    lfo.stop(t + 0.5);
+  }
+
   // Sparse record-surface crackle under the voice.
   _crackle(seconds) {
     const ctx = this.ctx;

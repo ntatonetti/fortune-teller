@@ -1,13 +1,21 @@
-// The camera and face detection (MediaPipe, runs locally in the browser).
-// Reports the nearest face: where it is and how close (by face width).
+// The camera and face detection (MediaPipe from its CDN, runs in the browser).
+// Reports the nearest face: where it is, how close (by face width), and
+// whether it's turned toward her or away (talking to a friend, say).
 
-import { FaceDetector, FilesetResolver } from "/vendor/mediapipe/vision_bundle.mjs";
+import { FaceDetector, FaceLandmarker, FilesetResolver } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.1.1/vision_bundle.mjs";
+
+// The iris centres and the middle of the lips, from a face mesh.
+function meshMarks(m) {
+  const [a, b] = [m[468], m[473]];
+  return { eyes: a.x < b.x ? [a, b] : [b, a], mouth: { x: (m[13].x + m[14].x) / 2, y: (m[13].y + m[14].y) / 2 } };
+}
 
 export class Watcher {
   constructor(video) {
     this.video = video;
     this.detector = null;
-    this.nearest = null; // {x, y, w} normalized 0..1 in the camera image, or null
+    this.landmarker = null; // the face mesh, for lining the guest's face up with hers
+    this.nearest = null; // {x, y, w, h, kp, turn} normalized 0..1 in the camera image, or null
     this.faces = [];
     this._lastVideoTime = -1;
     this._snap = document.createElement("canvas");
@@ -27,12 +35,19 @@ export class Watcher {
     this.video.srcObject = await navigator.mediaDevices.getUserMedia(constraints);
     await this.video.play();
     if (!this.detector) {
-      const fileset = await FilesetResolver.forVisionTasks("/vendor/mediapipe/wasm");
+      const fileset = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.1.1/wasm");
       this.detector = await FaceDetector.createFromOptions(fileset, {
-        baseOptions: { modelAssetPath: "/vendor/mediapipe/blaze_face_short_range.tflite", delegate: "GPU" },
+        baseOptions: { modelAssetPath: "https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite", delegate: "GPU" },
         runningMode: "VIDEO",
         minDetectionConfidence: 0.5,
       });
+      FaceLandmarker.createFromOptions(fileset, {
+        baseOptions: { modelAssetPath: "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task" },
+        runningMode: "IMAGE",
+        numFaces: 3, // the crop can catch a face behind theirs; _mesh keeps the biggest
+      })
+        .then((l) => (this.landmarker = l))
+        .catch((e) => console.warn("no face mesh; the flicker lines up from the detector's keypoints", e));
     }
   }
 
@@ -52,9 +67,20 @@ export class Watcher {
     const vh = v.videoHeight;
     this.faces = res.detections.map((d) => {
       const b = d.boundingBox;
-      return { x: (b.originX + b.width / 2) / vw, y: (b.originY + b.height / 2) / vh, w: b.width / vw, h: b.height / vh };
+      // keypoints come normalized: right eye, left eye, nose, mouth, ears; keep eyes and mouth
+      const kp = d.keypoints?.length >= 4 ? [d.keypoints[0], d.keypoints[1], d.keypoints[3]] : null;
+      // How far the nose sits off the line between the eyes, in eye-widths:
+      // about 0 facing her, 0.5 or more turned well to one side.
+      const [eyeR, eyeL, nose] = d.keypoints || [];
+      const turn = nose ? Math.abs(nose.x - (eyeR.x + eyeL.x) / 2) / Math.max(0.01, Math.abs(eyeR.x - eyeL.x)) : 0;
+      return { x: (b.originX + b.width / 2) / vw, y: (b.originY + b.height / 2) / vh, w: b.width / vw, h: b.height / vh, kp, turn };
     });
     this.nearest = this.faces.reduce((best, f) => (!best || f.w > best.w ? f : best), null);
+  }
+
+  // The nearest guest has turned their head away from her.
+  get lookingAway() {
+    return this.nearest?.turn > 0.3;
   }
 
   // A JPEG of the current camera frame for Claude, base64 data URL.
@@ -66,5 +92,61 @@ export class Watcher {
     this._snap.height = Math.round(v.videoHeight * s);
     this._snap.getContext("2d").drawImage(v, 0, 0, this._snap.width, this._snap.height);
     return this._snap.toDataURL("image/jpeg", 0.82);
+  }
+
+  // The nearest face cut out of the current frame, mirrored like a looking glass.
+  // With keypoints: a loose square with crop.marks (eyes left-to-right, mouth) in crop
+  // pixels, for the puppet to line up with hers. Without: framed tight, chin to
+  // hairline, in her face's proportions (100:128). Stays in memory; null if no face.
+  faceCrop(width = 240) {
+    const v = this.video;
+    const f = this.nearest;
+    if (!f || !v.videoWidth) return null;
+    const vw = v.videoWidth;
+    const vh = v.videoHeight;
+    if (f.kp) {
+      const side = Math.min(vw, vh, f.w * vw * 2.4);
+      const sx = Math.max(0, Math.min(vw - side, f.x * vw - side / 2));
+      const sy = Math.max(0, Math.min(vh - side, f.y * vh - side / 2));
+      const k = Math.min(1, 480 / side);
+      const crop = document.createElement("canvas");
+      crop.width = crop.height = Math.round(side * k);
+      const c = crop.getContext("2d");
+      c.translate(crop.width, 0);
+      c.scale(-1, 1);
+      c.drawImage(v, sx, sy, side, side, 0, 0, crop.width, crop.height);
+      const at = (p) => ({ x: crop.width - (p.x * vw - sx) * k, y: (p.y * vh - sy) * k });
+      const [e1, e2, mouth] = f.kp.map(at);
+      crop.mesh = this._mesh(crop);
+      crop.marks = crop.mesh ? meshMarks(crop.mesh) : { eyes: e1.x < e2.x ? [e1, e2] : [e2, e1], mouth };
+      return crop;
+    }
+    const boxH = (f.h || (f.w * vw) / vh) * vh; // detector box: about brows to chin
+    const sh = Math.min(vh, boxH * 1.2);
+    const sw = Math.min(vw, sh / 1.28);
+    const sx = Math.max(0, Math.min(vw - sw, f.x * vw - sw / 2));
+    const sy = Math.max(0, Math.min(vh - sh, f.y * vh + boxH * 0.55 - sh)); // chin at the bottom of her oval
+    const crop = document.createElement("canvas");
+    crop.width = width;
+    crop.height = Math.round(width * 1.28);
+    const c = crop.getContext("2d");
+    c.translate(crop.width, 0);
+    c.scale(-1, 1);
+    c.drawImage(v, sx, sy, sw, sh, 0, 0, crop.width, crop.height);
+    return crop;
+  }
+
+  // The face mesh (478 points, in crop pixels) found in the crop itself: much
+  // closer than the detector's rough keypoints, which also lag a frame.
+  _mesh(crop) {
+    let lm;
+    try {
+      const span = (f) => Math.max(...f.map((q) => q.x)) - Math.min(...f.map((q) => q.x));
+      lm = this.landmarker?.detect(crop).faceLandmarks?.reduce((a, f) => (!a || span(f) > span(a) ? f : a), null);
+    } catch (e) {
+      console.warn("face mesh failed", e);
+    }
+    if (!lm || lm.length < 478) return null;
+    return lm.map((q) => ({ x: q.x * crop.width, y: q.y * crop.height }));
   }
 }
