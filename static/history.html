@@ -37,11 +37,11 @@
       details.visit { border-bottom: 1px solid var(--rule); }
       details.visit > summary {
         list-style: none; cursor: pointer; padding: 12px 0;
-        display: grid; grid-template-columns: 5.5em 4.5em 1fr; gap: 0 14px; align-items: baseline;
+        display: grid; grid-template-columns: 7.5em 4.5em 1fr; gap: 0 14px; align-items: baseline;
       }
       details.visit > summary::-webkit-details-marker { display: none; }
       details.visit[open] > summary { padding-bottom: 6px; }
-      .when { color: var(--muted); font-variant-numeric: tabular-nums; }
+      .when { color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
       .who { color: var(--muted); }
       .gist { min-width: 0; }
       .gist .costume { font-family: var(--her); font-size: 17px; }
@@ -51,7 +51,7 @@
       .visit.quiet .costume { font-size: 15px; font-family: var(--ui); }
       .flag { color: var(--oxblood); font-weight: 600; }
 
-      .call { margin: 0 0 18px calc(10em + 28px); padding: 14px 16px; background: var(--sheet); border-left: 3px solid var(--rule); }
+      .call { margin: 0 0 18px calc(12em + 28px); padding: 14px 16px; background: var(--sheet); border-left: 3px solid var(--rule); }
       .call.fortune { border-left-color: var(--brass); }
       .call.failed { border-left-color: var(--oxblood); }
       .call h3 { margin: 0 0 10px; font-size: 15px; font-weight: 600; }
@@ -71,8 +71,7 @@
 
       @media (max-width: 820px) {
         header, main { padding-left: 16px; padding-right: 16px; }
-        details.visit > summary { grid-template-columns: 4.5em 1fr; }
-        .who { grid-column: 2; grid-row: 2; }
+        details.visit > summary { grid-template-columns: max-content 1fr; }
         .gist { grid-column: 1 / -1; }
         .call { margin-left: 0; }
         .pair { grid-template-columns: 1fr; }
@@ -120,6 +119,7 @@
         return (h >>> 0).toString(16).padStart(8, "0").slice(0, 6);
       }
 
+      const n = (k, one, many) => `<b>${k}</b> ${k === 1 ? one : many}`;
       const words = (s) => (s || "").split(/\s+/).filter(Boolean).length;
       const clock = (t) => new Date(t * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
       const dayOf = (t) => new Date(t * 1000).toLocaleDateString([], { month: "short", day: "numeric" });
@@ -182,7 +182,7 @@
           el("span", { class: "who", text: first.audience || "" }),
           el("span", { class: "gist" },
             el("span", { class: "costume", text: first.costume || (f || g ? "" : LABEL[v[0].kind]) || "" }),
-            failed ? el("span", { class: "flag", text: `  ${failed} failed` }) : null,
+            failed ? el("span", { class: "flag", text: `${failed} failed` }) : null,
             q ? el("span", { class: "asked", text: `Asked: “${q}”` }) : null,
             f?.output ? el("span", { class: "title", text: f.output.card_title }) : !f && g ? el("span", { class: "asked", text: "No fortune" }) : null)));
         d.addEventListener("toggle", () => {
@@ -209,8 +209,8 @@
         const ms = fortunes.map((c) => c.ms).sort((a, b) => a - b);
         const said = fortunes.map((c) => words(c.output.spoken));
         const parts = [
-          `<b>${visits(calls).length}</b> visits`, `<b>${fortunes.length}</b> fortunes`,
-          `<b>${calls.filter((c) => !c.output).length}</b> failed calls`,
+          n(visits(calls).length, "visit", "visits"), n(fortunes.length, "fortune", "fortunes"),
+          n(calls.filter((c) => !c.output).length, "failed call", "failed calls"),
         ];
         if (ms.length) parts.push(`fortunes take <b>${(ms[ms.length >> 1] / 1000).toFixed(1)} s</b> (median)`,
           `and run <b>${Math.min(...said)}–${Math.max(...said)}</b> words`);
