@@ -652,6 +652,7 @@ async function refreshServer() {
   } catch {
     server = { stock: {}, printer: "?" };
   }
+  puppet.flickers = server.flickers ?? 3;
   document.title = server.name || "The Oracle";
   $("title").textContent = server.name || "The Oracle";
   const st = $("status");

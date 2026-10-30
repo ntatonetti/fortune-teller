@@ -67,6 +67,7 @@ async def get_config():
     return {
         "name": config.ORACLE_NAME,
         "printer": config.PRINTER,
+        "flickers": config.FACE_FLICKERS,
         "guests": guests.count(),
         "stock": {
             k: [{"url": _audio_url(name), "text": text} for name, text in zip(names, voice.STOCK_LINES[k])]

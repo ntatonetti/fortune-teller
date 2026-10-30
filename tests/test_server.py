@@ -34,6 +34,7 @@ def no_network(monkeypatch, tmp_path):
 def test_endpoints_when_claude_is_down():
     with TestClient(app_module.app) as client:
         cfg = client.get("/api/config").json()
+        assert cfg["flickers"] == 3
         assert set(cfg["stock"]) >= {"invite_adult", "invite_child", "farewell_child"}
         assert all(v["url"] for variants in cfg["stock"].values() for v in variants)
         assert len(cfg["stock"]["invite_adult"]) >= 2  # several wordings per line
