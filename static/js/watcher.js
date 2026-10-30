@@ -2,12 +2,13 @@
 // Reports the nearest face: where it is, how close (by face width), and
 // whether it's turned toward her or away (talking to a friend, say).
 
-import { FaceDetector, FilesetResolver } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.1.1/vision_bundle.mjs";
+import { FaceDetector, FaceLandmarker, FilesetResolver } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.1.1/vision_bundle.mjs";
 
 export class Watcher {
   constructor(video) {
     this.video = video;
     this.detector = null;
+    this.landmarker = null; // the face mesh, for lining the guest's face up with hers
     this.nearest = null; // {x, y, w, h, kp, turn} normalized 0..1 in the camera image, or null
     this.faces = [];
     this._lastVideoTime = -1;
@@ -34,6 +35,13 @@ export class Watcher {
         runningMode: "VIDEO",
         minDetectionConfidence: 0.5,
       });
+      FaceLandmarker.createFromOptions(fileset, {
+        baseOptions: { modelAssetPath: "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task" },
+        runningMode: "IMAGE",
+        numFaces: 1,
+      })
+        .then((l) => (this.landmarker = l))
+        .catch((e) => console.warn("no face mesh; the flicker lines up from the detector's keypoints", e));
     }
   }
 
@@ -103,7 +111,7 @@ export class Watcher {
       c.drawImage(v, sx, sy, side, side, 0, 0, crop.width, crop.height);
       const at = (p) => ({ x: crop.width - (p.x * vw - sx) * k, y: (p.y * vh - sy) * k });
       const [e1, e2, mouth] = f.kp.map(at);
-      crop.marks = { eyes: e1.x < e2.x ? [e1, e2] : [e2, e1], mouth };
+      crop.marks = this._meshMarks(crop) || { eyes: e1.x < e2.x ? [e1, e2] : [e2, e1], mouth };
       return crop;
     }
     const boxH = (f.h || (f.w * vw) / vh) * vh; // detector box: about brows to chin
@@ -119,5 +127,20 @@ export class Watcher {
     c.scale(-1, 1);
     c.drawImage(v, sx, sy, sw, sh, 0, 0, crop.width, crop.height);
     return crop;
+  }
+
+  // The iris centres and the middle of the lips, found by the face mesh in the crop
+  // itself: much closer than the detector's rough keypoints, which also lag a frame.
+  _meshMarks(crop) {
+    let lm;
+    try {
+      lm = this.landmarker?.detect(crop).faceLandmarks?.[0];
+    } catch (e) {
+      console.warn("face mesh failed", e);
+    }
+    if (!lm || lm.length < 478) return null;
+    const at = (i) => ({ x: lm[i].x * crop.width, y: lm[i].y * crop.height });
+    const [a, b, upper, lower] = [at(468), at(473), at(13), at(14)];
+    return { eyes: a.x < b.x ? [a, b] : [b, a], mouth: { x: (upper.x + lower.x) / 2, y: (upper.y + lower.y) / 2 } };
   }
 }

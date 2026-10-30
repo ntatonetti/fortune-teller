@@ -13,6 +13,7 @@ import { Portrait, MARKS, BALL } from "./portrait.js";
 const W = 1600;
 const H = 900;
 const SERVO_HZ = 12;
+const GUEST_ALPHA = 0.5; // the guest's face over hers: half see-through, a double exposure
 
 const PORCELAIN = ["#f6ede0", "#e6d6c2", "#bfa88e"];
 const BRASS = ["#f3d27a", "#b8862f", "#5e3d12"];
@@ -64,7 +65,7 @@ export class Puppet {
     this.preview = false; // alignment: hold her awake with the mouth cycling
     this.guestFace = null; // the guest's face, toned like a spirit photograph
     this.flicker = false; // while consulting: her face and the guest's trade places
-    this._guestShown = 0; // 0 her, 1 the guest
+    this._guestShown = 0; // 0 her; GUEST_ALPHA while the guest's face shows over hers
     this._flickerHold = 0;
     this.flickers = 3; // glimpses of the guest per consult (FACE_FLICKERS in .env)
     this._flickers = 0; // glimpses so far this consult
@@ -217,10 +218,12 @@ export class Puppet {
         this._flickerHold = 5 + Math.floor(Math.random() * 6);
       } else if (this._flickers < this.flickers) {
         this._flickers++;
-        this._guestShown = 1;
+        this._guestShown = GUEST_ALPHA;
         this._flickerHold = 4 + Math.floor(Math.random() * 4);
       }
     }
+    // A seizure shakes the guest's face loose again, stuttering on and off.
+    if (this.shake > 0 && this.guestFace) this._guestShown = Math.random() < 0.5 ? GUEST_ALPHA : 0;
   }
 
   // ---------- drawing ----------

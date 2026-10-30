@@ -5,8 +5,10 @@
 
 const DIR = "/img/mechanika/";
 
-// Where things are in the 1376 x 768 pictures.
-export const MARKS = { eyes: [{ x: 672, y: 188 }, { x: 743, y: 188 }], mouth: { x: 707, y: 262 } };
+// Where things are in the 1376 x 768 pictures. Her eyes and mouth are where the
+// face mesh finds them on base.png (iris centres, middle of the lips), the same
+// way the guest's are found, so the two line up.
+export const MARKS = { eyes: [{ x: 674, y: 189 }, { x: 746, y: 189 }], mouth: { x: 709, y: 264 } };
 export const BALL = { x: 418, y: 531, r: 95 };
 const FACE = { x: 708, y: 232, rx: 112, ry: 128 }; // forehead to dropped chin
 const EYES = { x: 708, y: 188, rx: 88, ry: 30 };
