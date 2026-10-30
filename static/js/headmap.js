@@ -64,7 +64,7 @@ export class HeadMap {
       this.surfaces[name] = { ...spec, canvas, ctx, corners: defaultCorners(name) };
     }
     this.geom = { ...DEFAULT_GEOM };
-    this.bg = { on: false, level: 0.5 }; // her room behind the head, and how bright
+    this.bg = { on: true, level: 0.5 }; // her room behind the head, and how bright
     this.aligning = false;
     this.selected = "face";
     this.corner = 0; // 0 = whole surface, 1..4 = one corner
