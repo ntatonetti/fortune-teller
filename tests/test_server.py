@@ -39,7 +39,13 @@ def test_endpoints_when_claude_is_down():
         assert cfg["timings"]["wake_hold"] == 0.7 and cfg["timings"]["glitch_at_min"] == 0.3
         shown = {s["name"]: s for s in cfg["settings"]}
         assert shown["KID_FLICKER"]["value"] is False and shown["WAKE_HOLD_S"]["about"]
-        assert not any("KEY" in n or "VOICE_ID" in n for n in shown)  # behaviour only, no secrets
+        assert not any("KEY" in n for n in shown)  # behaviour and voice only, no secrets
+        assert shown["GREET_EFFORT"]["choices"] == ["low", "medium", "high", "xhigh", "max"]
+        assert "claude-opus-5-5" in shown["CLAUDE_MODEL"]["choices"]
+        assert shown["BLINK_S"]["range"] == [0.05, 0.6, 0.01] and shown["MEMORY_RECALL"]["range"]
+        assert all("range" in s for s in cfg["settings"] if isinstance(s["value"], (int, float)) and not isinstance(s["value"], bool))
+        assert shown["ELEVENLABS_VOICE_ID"]["kind"] == "voice" and shown["VOICES"]["kind"] == "voices"
+        assert any(v["id"] == shown["ELEVENLABS_VOICE_ID"]["value"] for v in cfg["voices"])  # hers is always choosable
         assert set(cfg["stock"]) >= {"invite_adult", "invite_child", "farewell_child"}
         assert all(v["url"] for variants in cfg["stock"].values() for v in variants)
         assert len(cfg["stock"]["invite_adult"]) >= 2  # several wordings per line
@@ -251,7 +257,7 @@ def test_elevenlabs_rate_limit_is_retried_and_queued(monkeypatch):
     monkeypatch.setattr(voice, "_eleven_slots", asyncio.Semaphore(2))
 
     async def many():
-        return await asyncio.gather(*(voice._eleven(f"line {i}") for i in range(6)))
+        return await asyncio.gather(*(voice._eleven(f"line {i}", "v", "m") for i in range(6)))
 
     results = asyncio.run(many())
     assert all(r == b"ID3fake-mp3" for r in results)  # the 429 was retried, not dropped
@@ -452,7 +458,7 @@ def test_settings_edits_go_into_env_and_take_effect(monkeypatch, tmp_path):
     from server import config
 
     env = tmp_path / ".env"
-    env.write_text("ANTHROPIC_API_KEY=secret\nWAKE_HOLD_S=0.7\n")
+    env.write_text("ANTHROPIC_API_KEY=secret\nELEVENLABS_VOICE_ID=voiceOne000000000000\nWAKE_HOLD_S=0.7\n")
     monkeypatch.setattr(config, "ENV_FILE", env)
     monkeypatch.setattr(config, "_SHELL", {})
     try:
@@ -471,6 +477,34 @@ def test_settings_edits_go_into_env_and_take_effect(monkeypatch, tmp_path):
             # A hand edit to .env is picked up by the next save (Awaken sends no edits)
             env.write_text(env.read_text().replace("WAKE_HOLD_S=1.5", "WAKE_HOLD_S=2"))
             assert post({}).json()["timings"]["wake_hold"] == 2
+            # Dropdowns take only their choices
+            assert post({"GREET_EFFORT": "extreme"}).status_code == 400
+            assert post({"GREET_EFFORT": "xhigh"}).json()["settings"]
+            assert config.GREET_EFFORT == "xhigh"
+            # Voices: a list to choose from, and a new voice re-voices her lines
+            assert post({"VOICES": "Crone=gDQfVolj9RbmXgumLcOq, Bad"}).status_code == 400
+            cfg = post({"VOICES": "Old one=voiceOne000000000000, Crone=gDQfVolj9RbmXgumLcOq"}).json()
+            assert [v["name"] for v in cfg["voices"]] == ["Old one", "Crone"]
+            before = cfg["stock"]["invite_adult"][0]["url"]
+            cfg = post({"ELEVENLABS_VOICE_ID": "gDQfVolj9RbmXgumLcOq"}).json()
+            assert config.ELEVENLABS_VOICE_ID == "gDQfVolj9RbmXgumLcOq"
+            assert cfg["stock"]["invite_adult"][0]["url"] != before  # her lines in the new voice
+            assert "VOICES='Old one=voiceOne000000000000, Crone=gDQfVolj9RbmXgumLcOq'" in env.read_text()
+
+            # A voice ElevenLabs won't use is refused and not saved
+            async def no_voice(text, voice_id="", model=""):
+                return None
+
+            monkeypatch.setattr(app_module.voice, "speak", no_voice)
+            assert post({"ELEVENLABS_VOICE_ID": "voiceOne000000000000"}).status_code == 400
+            assert "ELEVENLABS_VOICE_ID=gDQfVolj9RbmXgumLcOq" in env.read_text()
     finally:
         monkeypatch.undo()
         config.reload()
+
+
+def test_hearing_a_voice():
+    with TestClient(app_module.app) as client:
+        assert client.post("/api/voice/sample", json={"voice_id": "not an id!"}).status_code == 400
+        r = client.post("/api/voice/sample", json={"voice_id": "S0erf8BY5pzZPCxzCfku"})
+        assert r.status_code == 200 and client.get(r.json()["url"]).content[:3] == b"ID3"

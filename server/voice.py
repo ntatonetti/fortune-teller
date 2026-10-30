@@ -119,8 +119,12 @@ STOCK_LINES: dict[str, list[str]] = {
 }
 
 
-def _key(text: str) -> str:
-    voice = f"eleven:{config.ELEVENLABS_VOICE_ID}:{config.ELEVENLABS_MODEL}"
+# Played on the start screen to hear a voice, and voiced to test a new one.
+SAMPLE_LINE = "Come closer, darling... the gears have been waiting for you."
+
+
+def _key(text: str, voice_id: str, model: str) -> str:
+    voice = f"eleven:{voice_id}:{model}"
     return hashlib.sha256(f"{voice}|{text}".encode()).hexdigest()[:24]
 
 
@@ -137,16 +141,16 @@ _eleven_slots = asyncio.Semaphore(config.ELEVENLABS_CONCURRENCY)
 RETRY_DELAYS_S = (1.0, 2.5)
 
 
-async def _eleven(text: str) -> bytes:
+async def _eleven(text: str, voice_id: str, model: str) -> bytes:
     async with _eleven_slots, httpx.AsyncClient(timeout=20) as client:
         for delay in (*RETRY_DELAYS_S, None):
             r = await client.post(
-                ELEVEN_URL.format(voice_id=config.ELEVENLABS_VOICE_ID),
+                ELEVEN_URL.format(voice_id=voice_id),
                 params={"output_format": "mp3_44100_128"},
                 headers={"xi-api-key": config.ELEVENLABS_API_KEY, "accept": "audio/mpeg"},
                 json={
                     "text": text,
-                    "model_id": config.ELEVENLABS_MODEL,
+                    "model_id": model,
                     "voice_settings": {"stability": 0.45, "similarity_boost": 0.8, "style": 0.35},
                 },
             )
@@ -157,15 +161,18 @@ async def _eleven(text: str) -> bytes:
             return r.content
 
 
-async def speak(text: str) -> str | None:
-    """Render `text` to an audio file and return its cache filename (or None)."""
+async def speak(text: str, voice_id: str = "", model: str = "") -> str | None:
+    """Render `text` to an audio file and return its cache filename (or None).
+    In her voice unless another is given."""
+    voice_id = voice_id or config.ELEVENLABS_VOICE_ID
+    model = model or config.ELEVENLABS_MODEL
     config.CACHE_DIR.mkdir(parents=True, exist_ok=True)
-    name = f"{_key(text)}.mp3"
+    name = f"{_key(text, voice_id, model)}.mp3"
     path = config.CACHE_DIR / name
     if path.exists():
         return name
     try:
-        path.write_bytes(await _eleven(text))
+        path.write_bytes(await _eleven(text, voice_id, model))
         return name
     except (httpx.HTTPError, OSError) as e:
         log.error("ElevenLabs failed: %s", e)

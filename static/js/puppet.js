@@ -157,7 +157,7 @@ export class Puppet {
     this._lastServo = 0;
     this._last = performance.now();
     // Her timings in seconds, replaced by the server's (.env) once they arrive.
-    this.timing = { head_move: 0.9, blink_min: 2.5, blink_max: 7.5, blink: 0.17, glimpse_min: 0.33, glimpse_max: 0.58, glimpse_gap_min: 0.42, glimpse_gap_max: 0.83 };
+    this.timing = { head_move: 0.9, blink_min: 2.5, blink_max: 7.5, blink: 0.17, glimpse_min: 0.33, glimpse_max: 0.58, glimpse_gap_min: 0.42, glimpse_gap_max: 0.83, look_side: 0.35, glance_min: 5, glance_max: 14, glance: 0.9 };
     this._blinkAt = performance.now() + 3000;
     this._blinkTicks = 0;
     this._jitter = { x: 0, y: 0, r: 0 };
@@ -166,6 +166,7 @@ export class Puppet {
     this.preview = false; // alignment: hold her awake with the mouth cycling
     this.guestFace = null; // the guest's face, toned like a spirit photograph
     this.flicker = false; // while consulting: her face and the guest's trade places
+    this.trance = false; // while consulting: her eyes rolled back
     this._guestShown = 0; // 0 her; guestAlpha while the guest's face shows over hers
     this.guestAlpha = 1; // how solid their face is over hers (FLICKER_OPACITY in .env)
     this._flickerHold = 0;
@@ -299,6 +300,16 @@ export class Puppet {
       this._blinkTicks = ticks(this.timing.blink);
       this._blinkAt = now + between(this.timing.blink_min, this.timing.blink_max) * 1000;
     }
+    // Awake, she glances away now and then (her photograph's eyes only).
+    if (this._glance && now > this._glanceEnd) this._glance = null;
+    if (p.slump > 0 || this.trance || !(this.timing.glance > 0)) this._glanceAt = 0;
+    else if (!this._glance && now > this._glanceAt) {
+      if (this._glanceAt) {
+        this._glance = ["look-left", "look-right", "look-up", "look-down"][Math.floor(Math.random() * 4)];
+        this._glanceEnd = now + this.timing.glance * 1000;
+      }
+      this._glanceAt = now + between(this.timing.glance_min, this.timing.glance_max) * 1000;
+    }
     // The photograph's mouth: shut, then three openings, set on the servo clock.
     const v = this.jawLevel;
     this._mouth = v < 0.08 ? 0 : v < 0.2 ? 1 : v < 0.4 ? 2 : 3;
@@ -352,15 +363,29 @@ export class Puppet {
     this._vignette();
   }
 
-  // Her photograph as it is this tick: eyes shut for blinks and the trance.
-  // Her head snaps between slumped and upright (a fade would show two heads),
-  // and comes up with the eyes still shut.
+  // Her photograph as it is this tick. Her head snaps between slumped and
+  // upright (a fade would show two heads), and comes up with the eyes still
+  // shut; asleep, an eye cracks open to peek.
   _portraitNow(time) {
     const p = this.pose;
-    if (this.mode === "head" && this.preview) return this.portrait.compose(Math.floor(time) % 2 ? 3 : 0, false, false);
-    if (p.slump > 0.5) return this.portrait.compose(0, false, true);
-    const shut = this._blinkTicks > 0 || (p.lidL + p.lidR) / 2 < 0.5 || p.slump > 0.1;
-    return this.portrait.compose(this._mouth, shut, false);
+    if (this.mode === "head" && this.preview) return this.portrait.compose(Math.floor(time) % 2 ? 3 : 0);
+    if (p.slump > 0.5) return this.portrait.compose(0, null, false, Math.max(p.lidL, p.lidR) > 0.5 ? "asleep-peek" : "asleep");
+    return this.portrait.compose(this._mouth, this._eyesNow(), p.brow > 0.5);
+  }
+
+  // Which of her photographed eyes fit the pose: shut, rolled back in the
+  // trance, looking off (gaze past LOOK_SIDE, or a glance away), or heavy-lidded.
+  _eyesNow() {
+    const p = this.pose;
+    const lids = (p.lidL + p.lidR) / 2;
+    const side = this.timing.look_side ?? 0.35;
+    if (this._blinkTicks > 0 || lids < 0.25 || p.slump > 0.1) return "blink";
+    if (this.trance) return "trance";
+    if (this._glance) return this._glance;
+    if (Math.abs(p.eyeX) >= side && Math.abs(p.eyeX) >= Math.abs(p.eyeY)) return p.eyeX < 0 ? "look-left" : "look-right";
+    if (Math.abs(p.eyeY) >= side) return p.eyeY < 0 ? "look-up" : "look-down";
+    if (lids < 0.75) return "eyes-half";
+    return null;
   }
 
   // The whole booth as her photograph, filling the screen.

@@ -404,6 +404,7 @@ async function consultAndSpeak() {
   sound.ball(1);
   // Adults get the eyes rolled up into the head; kids see her gaze into the ball.
   puppet.set(kid ? { eyeX: 0, eyeY: 1, lidL: 0.6, lidR: 0.6 } : { eyeX: 0, eyeY: -1, lidL: 0.35, lidR: 0.35, tilt: -6 });
+  puppet.trance = !kid;
   // Her face and the guest's flicker back and forth while the spirits answer
   // (for kids only with KID_FLICKER).
   const showFace = !kid || !!server.kid_flicker;
@@ -431,6 +432,7 @@ async function consultAndSpeak() {
 
   sound.whir(false);
   puppet.flicker = false;
+  puppet.trance = false;
   puppet.gearTarget = 0.6;
   puppet.ballTarget = 0.55;
   sound.ball(0.55);
@@ -463,6 +465,7 @@ async function sleepAgain() {
   sound.clock(false);
   sound.creak();
   puppet.flicker = false;
+  puppet.trance = false;
   puppet.guestFace = null; // forget their face
   puppet.set({ slump: 1, lidL: 0, lidR: 0, brow: 0, tilt: 0, turn: 0, eyeX: 0, eyeY: 0 });
   puppet.gearTarget = 0.15;
@@ -771,33 +774,21 @@ function showSettings(list) {
   const box = $("settingsList");
   box.innerHTML = "";
   let section = null;
-  for (const { section: sec, name, value, about } of list) {
+  for (const setting of list) {
+    const { section: sec, name, value, about } = setting;
     if (sec !== section) {
       section = sec;
       const h = document.createElement("h3");
       h.textContent = sec;
       box.appendChild(h);
     }
-    const row = document.createElement("label");
+    const row = document.createElement(setting.kind === "voices" ? "div" : "label");
     row.className = "row";
     const code = document.createElement("code");
     code.textContent = name;
     const cell = document.createElement("span");
     cell.className = "value";
-    const input = document.createElement("input");
-    input.name = name;
-    if (typeof value === "boolean") {
-      input.type = "checkbox";
-      input.checked = value;
-    } else {
-      input.type = "text";
-      input.spellcheck = false;
-      if (typeof value === "number") input.inputMode = "decimal";
-      else input.className = "words";
-      input.value = String(value);
-    }
-    input.dataset.was = typeof value === "boolean" ? String(value) : input.value;
-    cell.appendChild(input);
+    cell.append(...control(setting));
     const unit = name.endsWith("_S") ? "s" : name.endsWith("_H") ? "h" : "";
     if (unit) cell.append(` ${unit}`);
     const what = document.createElement("span");
@@ -806,13 +797,153 @@ function showSettings(list) {
     row.append(code, cell, what);
     box.appendChild(row);
   }
+  fillVoiceChoice();
   $("settings").hidden = !list.length;
+}
+
+const el = (tag, props = {}) => Object.assign(document.createElement(tag), props);
+
+// The input(s) a setting is edited with. The one carrying its name holds the
+// value; dataset.was is the value it started with.
+function control({ name, value, choices, range, kind }) {
+  if (typeof value === "boolean") {
+    const box = el("input", { type: "checkbox", name, checked: value });
+    box.dataset.was = String(value);
+    return [box];
+  }
+  if (kind === "voice") return voiceChoice(name, value);
+  if (kind === "voices") return voiceList(name, value);
+  if (choices) {
+    const sel = el("select", { name });
+    for (const c of choices.includes(value) ? choices : [value, ...choices]) sel.append(el("option", { value: c, textContent: c }));
+    sel.value = value;
+    sel.dataset.was = value;
+    return [sel];
+  }
+  if (range) {
+    // A slider over the usual span, and the number itself, which can go past it.
+    const [min, max, step] = range;
+    const slider = el("input", { type: "range", min, max, step, value, tabIndex: -1 });
+    const num = el("input", { type: "text", name, inputMode: "decimal", spellcheck: false, value: String(value) });
+    num.dataset.was = num.value;
+    slider.setAttribute("aria-label", `${name} slider`);
+    slider.addEventListener("input", () => (num.value = slider.value));
+    num.addEventListener("input", () => {
+      const n = parseFloat(num.value);
+      if (Number.isFinite(n)) slider.value = clamp(n, min, max);
+    });
+    return [slider, num];
+  }
+  const input = el("input", { type: "text", name, spellcheck: false, className: "words", value: String(value) });
+  input.dataset.was = input.value;
+  return [input];
+}
+
+// Her voice: one of the voices listed, and a way to hear it.
+function voiceChoice(name, value) {
+  const sel = el("select", { name, className: "voice" });
+  sel.dataset.was = value;
+  sel.dataset.want = value;
+  sel.addEventListener("change", () => (sel.dataset.want = sel.value));
+  const hear = el("button", { type: "button", className: "small", textContent: "Hear" });
+  hear.addEventListener("click", () => hearVoice(sel.value, hear));
+  return [sel, hear];
+}
+
+function fillVoiceChoice() {
+  const sel = $("settingsList").querySelector("select.voice");
+  if (!sel) return;
+  const voices = readVoices();
+  const want = sel.dataset.want;
+  sel.innerHTML = "";
+  if (want && !voices.some((v) => v.id === want)) voices.unshift({ name: "Original", id: want });
+  for (const v of voices) sel.append(el("option", { value: v.id, textContent: v.name }));
+  sel.value = want;
+}
+
+// VOICES: a row per voice (name, id, Hear, Remove) and a row to add one. A
+// hidden input carries the list as the .env text, Name=voice id, comma between.
+function voiceList(name, value) {
+  const text = (vs) => vs.map((v) => `${v.name}=${v.id}`).join(", ");
+  const hidden = el("input", { type: "hidden", name, value: text(value) });
+  hidden.dataset.was = hidden.value;
+  const list = el("span", { className: "voices" });
+  const sync = () => {
+    hidden.value = text(readVoices(list));
+    fillVoiceChoice();
+  };
+  const addRow = ({ name: vName, id }) => {
+    const r = el("span", { className: "voiceRow" });
+    const n = el("input", { type: "text", value: vName, spellcheck: false, className: "vname" });
+    n.setAttribute("aria-label", "voice name");
+    n.addEventListener("input", sync);
+    const i = el("code", { textContent: id, className: "vid" });
+    const hear = el("button", { type: "button", className: "small", textContent: "Hear" });
+    hear.addEventListener("click", () => hearVoice(id, hear));
+    const drop = el("button", { type: "button", className: "small", textContent: "Remove" });
+    drop.addEventListener("click", () => (r.remove(), sync()));
+    r.append(n, i, hear, drop);
+    list.append(r);
+  };
+  value.forEach(addRow);
+  const adder = el("span", { className: "voiceRow adder" });
+  const n = el("input", { type: "text", placeholder: "Name", spellcheck: false, className: "vname" });
+  const i = el("input", { type: "text", placeholder: "ElevenLabs voice ID", spellcheck: false, className: "vidIn" });
+  n.setAttribute("aria-label", "new voice name");
+  i.setAttribute("aria-label", "new voice ID");
+  const add = el("button", { type: "button", className: "small", textContent: "Add voice" });
+  add.addEventListener("click", () => {
+    const vName = n.value.replace(/[=,]/g, " ").trim();
+    const id = i.value.trim();
+    if (!vName || !/^[A-Za-z0-9]{10,40}$/.test(id)) {
+      $("settingsError").textContent = "A voice needs a name and its ElevenLabs voice ID (letters and digits).";
+      $("settingsError").hidden = false;
+      return;
+    }
+    $("settingsError").hidden = true;
+    addRow({ name: vName, id });
+    n.value = i.value = "";
+    sync();
+  });
+  adder.append(n, i, add);
+  return [hidden, list, adder];
+}
+
+// The voices as listed on the start screen right now.
+function readVoices(list = $("settingsList").querySelector(".voices")) {
+  if (!list) return [];
+  return [...list.querySelectorAll(".voiceRow")].map((r) => ({
+    name: r.querySelector(".vname").value.replace(/[=,]/g, " ").trim() || "Unnamed",
+    id: r.querySelector(".vid").textContent,
+  }));
+}
+
+async function hearVoice(id, button) {
+  button.disabled = true;
+  button.textContent = "…";
+  try {
+    const res = await fetch("/api/voice/sample", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ voice_id: id }),
+    });
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.detail || res.status);
+    $("settingsError").hidden = true;
+    await new Audio(body.url).play();
+  } catch (e) {
+    $("settingsError").textContent = `Couldn't play that voice: ${e.message}`;
+    $("settingsError").hidden = false;
+  } finally {
+    button.disabled = false;
+    button.textContent = "Hear";
+  }
 }
 
 // The settings changed on the start screen, as {NAME: "text"}.
 function editedSettings() {
   const out = {};
-  for (const input of $("settingsList").querySelectorAll("input")) {
+  for (const input of $("settingsList").querySelectorAll("[name]")) {
     const now = input.type === "checkbox" ? String(input.checked) : input.value.trim();
     if (now !== input.dataset.was) out[input.name] = now;
   }
@@ -822,11 +953,22 @@ function editedSettings() {
 // Save the start screen's edits into .env and reload every setting (hand edits
 // to .env too), so this session runs on them. False if one was refused.
 async function saveSettings() {
+  const edits = editedSettings();
+  const btn = $("beginBtn");
+  const label = btn?.textContent;
+  if (btn && ("ELEVENLABS_VOICE_ID" in edits || "ELEVENLABS_MODEL" in edits)) {
+    btn.disabled = true;
+    btn.textContent = "Teaching her the new voice…";
+  }
   const res = await fetch("/api/settings", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ values: editedSettings() }),
+    body: JSON.stringify({ values: edits }),
   }).catch(() => null);
+  if (btn) {
+    btn.disabled = false;
+    btn.textContent = label;
+  }
   if (!res) return true; // server unreachable: carry on with what she has
   if (!res.ok) {
     const { detail } = await res.json().catch(() => ({}));

@@ -34,7 +34,11 @@ She needs the internet: Claude for every word she says about a guest, ElevenLabs
 
 **Waking with a start:** about a third of the time (`WAKE_STARTLE`) she snorts awake, looks about dazed for a moment (`WAKE_DAZED_S`), and mutters ("Wh... where... what year is it?") before she finds the guest.
 
-**Settings:** everything that changes how she behaves (her name, the Claude model and timeouts, her memory, the face flicker, and every pause, wait and transition above, in seconds) is listed on the setup screen with its value and what it does, and can be edited there. **Awaken the Oracle** saves the edits into `.env` and reloads every setting, including edits made to `.env` by hand, so no restart is needed. `.env.example` lists them too.
+**Settings:** everything that changes how she behaves (her name, the Claude model and effort, her voice, her memory, the face flicker, her looks, and every pause, wait and transition above, in seconds) is listed on the setup screen with its value and what it does, and can be edited there. Models, efforts and the voice model are dropdowns. Numbers have a slider over their usual span and a box to type the number in, which can go past the slider. **Awaken the Oracle** saves the edits into `.env` and reloads every setting, including edits made to `.env` by hand, so no restart is needed. `.env.example` lists them too.
+
+**Voices:** the setup screen lists her voices; pick one from the dropdown and press **Hear** to listen to it. Add a voice with a name and its ElevenLabs voice ID, or remove one; they're kept in `.env` as `VOICES`. When you awaken her in a new voice, it's tried first (she won't start in a voice ElevenLabs refuses) and all her stock lines are voiced again in it, which takes a few seconds the first time.
+
+**Her looks:** her photographed eyes follow what she's doing. She looks left, right, up or down when her gaze goes past `LOOK_SIDE`, and glances away now and then while awake (`GLANCE_MIN_S` to `GLANCE_MAX_S`, held for `GLANCE_S`). Her brows go up when she wakes and greets them, her eyes roll back in a trance while she consults an adult (kids see her look down into the ball), her lids hang half shut as she drifts off or comes to, and asleep, one eye cracks open to peek at someone lingering.
 
 **Walking away:** if every face disappears from the camera for 8 seconds at any point in a reading, she stops mid-sentence, grumbles ("Hmph. Gone without a word..."), and goes back to sleep. If they leave during the fortune, no ticket prints. This only applies once the camera has actually seen the guest, so a dark booth where face detection struggles never cuts a real reading short. Pressing the button or speaking also counts as "still here". **J / K** adjust the 8 seconds, and **D** shows the countdown.
 
@@ -59,7 +63,7 @@ She needs the internet: Claude for every word she says about a guest, ElevenLabs
 **ElevenLabs:**
 1. Sign up at elevenlabs.io. Under Developers → API Keys, create a key and set it as `ELEVENLABS_API_KEY`.
 2. Open the Voice Library and search for things like *old witch*, *fortune teller*, *grandmother storyteller*, *raspy*, or *Transylvanian*. Add one you like to your voices.
-3. Open the voice, choose "..." → **Copy voice ID**, and set `ELEVENLABS_VOICE_ID`.
+3. Open the voice, choose "..." → **Copy voice ID**, and set `ELEVENLABS_VOICE_ID`. Add more voices on the setup screen to switch between them.
 
 Each reading is about 500–700 characters of speech. Check that your plan's monthly character quota covers your guest count. The fixed lines are rendered once and cached in `data/tts_cache/`.
 
@@ -145,7 +149,7 @@ Layout:
 - `server/voice.py`: ElevenLabs, plus the cache
 - `server/printer.py`: fortune cards
 - `static/js/puppet.js`: the automaton drawing, in screen and head modes
-- `static/js/portrait.js` and `static/img/mechanika/`: her photograph. Every frame (`blink`, `mouth-1` to `mouth-3`, `asleep`) is an edit of `base.png` that changes only her face, so its eyes or mouth can be laid over the base. Without these files she falls back to the drawn porcelain doll. `static/js/mechanika-mesh.js` is where her face-mesh points sit on `base.png`, for warping guests' faces onto hers; if `base.png` changes, rerun `.venv/bin/python scripts/measure_face.py` with the server running (it needs `scipy` in `.venv`).
+- `static/js/portrait.js` and `static/img/mechanika/`: her photograph. Every frame is an edit of `base.png` that changes only her face, so its eyes, brows or mouth can be laid over the base: `blink`, `eyes-half`, `look-left`, `look-right`, `look-up`, `look-down` and `trance` for her eyes, `brows-up`, and `mouth-1` to `mouth-3`. `asleep` and `asleep-peek` are shown whole. Without these files she falls back to the drawn porcelain doll. `static/js/mechanika-mesh.js` is where her face-mesh points sit on `base.png`, for warping guests' faces onto hers; if `base.png` changes, rerun `.venv/bin/python scripts/measure_face.py` with the server running (it needs `scipy` in `.venv`).
 - `static/js/headmap.js`, `static/js/homography.js`: head-mode surfaces, corner-pin warp and alignment
 - `static/js/sound.js`: synthesized sound effects and the phonograph chain
 - `static/js/watcher.js`: camera and face detection

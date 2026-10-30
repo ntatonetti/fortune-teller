@@ -72,7 +72,10 @@ async def get_config():
         "flicker_opacity": config.FLICKER_OPACITY,
         "kid_flicker": config.KID_FLICKER,
         "timings": config.TIMINGS,
-        "settings": [{"section": s, "name": n, "value": v, "about": a} for s, n, v, a in config.SETTINGS],
+        "settings": [
+            {"section": s, "name": n, "value": v, "about": a, **config.CONTROLS[n]} for s, n, v, a in config.SETTINGS
+        ],
+        "voices": _voices(),
         "guests": guests.count(),
         "stock": {
             k: [{"url": _audio_url(name), "text": text} for name, text in zip(names, voice.STOCK_LINES[k])]
@@ -82,8 +85,33 @@ async def get_config():
     }
 
 
+def _voices() -> list[dict]:
+    """The voices to choose from: VOICES, and the one she has if it isn't there."""
+    listed = list(config.VOICES)
+    if config.ELEVENLABS_VOICE_ID and all(v["id"] != config.ELEVENLABS_VOICE_ID for v in listed):
+        listed.insert(0, {"name": "Original", "id": config.ELEVENLABS_VOICE_ID})
+    return listed
+
+
 class Edits(BaseModel):
     values: dict[str, str] = {}
+
+
+class VoiceTry(BaseModel):
+    voice_id: str
+
+
+@app.post("/api/voice/sample")
+async def voice_sample(v: VoiceTry):
+    """A line in the given voice, to hear it on the start screen."""
+    try:
+        config.voices(f"x={v.voice_id}")
+    except ValueError:
+        raise HTTPException(400, "that isn't an ElevenLabs voice id")
+    name = await voice.speak(voice.SAMPLE_LINE, voice_id=v.voice_id)
+    if not name:
+        raise HTTPException(502, "ElevenLabs wouldn't voice that one")
+    return {"url": _audio_url(name)}
 
 
 @app.post("/api/settings")
@@ -96,14 +124,24 @@ async def save_settings(edits: Edits):
         try:
             if "\n" in raw or "\r" in raw:
                 raise ValueError
-            config._cast(raw, config.CASTS[name])
+            config.check(name, raw)
         except ValueError:
             raise HTTPException(400, f"{name}: {raw!r} isn't a valid value")
+    # A new voice or voice model must work before she's given it.
+    voice_id = edits.values.get("ELEVENLABS_VOICE_ID", config.ELEVENLABS_VOICE_ID).strip()
+    model = edits.values.get("ELEVENLABS_MODEL", config.ELEVENLABS_MODEL).strip()
+    revoice = (voice_id, model) != (config.ELEVENLABS_VOICE_ID, config.ELEVENLABS_MODEL)
+    if revoice and not await voice.speak(voice.SAMPLE_LINE, voice_id=voice_id, model=model):
+        raise HTTPException(400, "ElevenLabs wouldn't use that voice with that model")
     for name, raw in edits.values.items():
-        set_key(config.ENV_FILE, name, raw.strip(), quote_mode="auto" if config.CASTS[name] is str else "never")
+        quote = "never" if config.CASTS[name] in (int, float, bool) else "auto"
+        set_key(config.ENV_FILE, name, raw.strip(), quote_mode=quote)
         log.info("setting %s=%s", name, raw.strip())
     config.reload()
     guests.max_age_s = config.MEMORY_MAX_AGE_H * 3600
+    if revoice:
+        log.info("voicing her stock lines in the new voice")
+        stock_audio.update(await voice.prewarm())
     return await get_config()
 
 
