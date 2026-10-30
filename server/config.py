@@ -89,8 +89,9 @@ ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY", "")
 ELEVENLABS_VOICE_ID = _setting("ELEVENLABS_VOICE_ID", "", "the voice she speaks in: press Use this voice on one below", str, kind="voice")
 VOICES = _setting("VOICES", "", "the ElevenLabs voices to choose from: add one with its voice ID from elevenlabs.io", voices, kind="voices")
 ELEVENLABS_MODEL = _setting(
-    "ELEVENLABS_MODEL", "eleven_flash_v2_5", "the ElevenLabs model that voices her (flash is quickest)", str,
-    ["eleven_flash_v2_5", "eleven_turbo_v2_5", "eleven_multilingual_v2", "eleven_v3"],
+    "ELEVENLABS_MODEL", "eleven_flash_v2_5", "the ElevenLabs model that voices her (flash is quickest, v4 the most expressive)", str,
+    ["eleven_flash_v2_5", "eleven_flash_v2", "eleven_turbo_v2_5", "eleven_turbo_v2",
+     "eleven_multilingual_v2", "eleven_v3", "eleven_v4_turbo", "eleven_v4"],
 )
 ELEVENLABS_CONCURRENCY = int(os.getenv("ELEVENLABS_CONCURRENCY", "2"))  # max requests at once
 
