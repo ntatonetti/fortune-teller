@@ -8,7 +8,7 @@
 //            surface (see headmap.js) for projecting onto a foam head and globe
 
 import { DEFAULT_GEOM } from "./headmap.js";
-import { Portrait, MARKS, BALL } from "./portrait.js";
+import { Portrait, MARKS, BALL, FACE } from "./portrait.js";
 import { IDX, OUTLINE, HER, TRIS } from "./mechanika-mesh.js";
 
 const W = 1600;
@@ -1061,7 +1061,26 @@ export class Puppet {
       // her room on the backdrop, dimmer than her so the head still stands out;
       // switched off, just its frame while aligning
       this._onSurface(bg, (c) => {
-        if (this.portrait && hm.bg.on) c.drawImage(this._portraitNow(time), 0, 0, bg.w, bg.h);
+        if (!this.portrait || !hm.bg.on) return;
+        c.drawImage(this._portraitNow(time), 0, 0, bg.w, bg.h);
+        // Her face and globe are projected onto the foam head and the real globe,
+        // so black out the painted ones rather than show them twice.
+        const k = bg.w / this.portrait.base.width;
+        const holes = [
+          { x: FACE.x, y: FACE.y - 10, rx: FACE.rx * 1.4, ry: FACE.ry * 1.35 },
+          { x: BALL.x, y: BALL.y + BALL.r * 0.25, rx: BALL.r * 1.35, ry: BALL.r * 1.6 },
+        ];
+        for (const h of holes) {
+          c.save();
+          c.translate(h.x * k, h.y * k);
+          c.scale(h.rx * k, h.ry * k);
+          const g = c.createRadialGradient(0, 0, 0, 0, 0, 1);
+          g.addColorStop(0.75, "rgba(0,0,0,1)");
+          g.addColorStop(1, "rgba(0,0,0,0)");
+          c.fillStyle = g;
+          c.fillRect(-1, -1, 2, 2);
+          c.restore();
+        }
       }, power * hm.bg.level);
     }
 

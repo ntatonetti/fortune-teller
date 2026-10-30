@@ -11,7 +11,7 @@ const DIR = "/img/mechanika/";
 // way the guest's are found, so the two line up.
 export const MARKS = { eyes: [{ x: 658, y: 213 }, { x: 729, y: 212 }], mouth: { x: 694, y: 276 } };
 export const BALL = { x: 691, y: 587, r: 78 };
-const FACE = { x: 693, y: 255, rx: 105, ry: 125 }; // forehead to dropped chin
+export const FACE = { x: 693, y: 255, rx: 105, ry: 125 }; // forehead to dropped chin
 const EYES = { x: 693, y: 214, rx: 80, ry: 28 };
 const BROWS = { x: 693, y: 185, rx: 100, ry: 42 }; // brows and the eyes under them
 // Her eyes: each frame only differs from base.png there.
