@@ -44,6 +44,7 @@ def test_endpoints_when_claude_is_down():
         assert "claude-opus-5-5" in shown["CLAUDE_MODEL"]["choices"]
         assert shown["BLINK_S"]["range"] == [0.05, 0.6, 0.01] and shown["MEMORY_RECALL"]["range"]
         assert all("range" in s for s in cfg["settings"] if isinstance(s["value"], (int, float)) and not isinstance(s["value"], bool))
+        assert all(s["detail"] and s["example"] for s in cfg["settings"])  # every setting explained, with an example
         assert shown["ELEVENLABS_VOICE_ID"]["kind"] == "voice" and shown["VOICES"]["kind"] == "voices"
         assert any(v["id"] == shown["ELEVENLABS_VOICE_ID"]["value"] for v in cfg["voices"])  # hers is always choosable
         assert set(cfg["stock"]) >= {"invite_adult", "invite_child", "farewell_child"}

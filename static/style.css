@@ -460,7 +460,64 @@ body.mirror #show {
   color: #a98;
 }
 
+/* The longer story under a row, lined up under its description. */
+#settingsList .row:has(+ .more) {
+  border-bottom: none;
+}
+
+#settingsList .more {
+  font-size: 15px; /* same em as .row, so the indent matches its columns */
+  margin: 0 0 0 calc(13.5em + 15.5em + 24px);
+  padding: 0 0 5px;
+  border-bottom: 1px dotted rgba(138, 106, 42, 0.35);
+}
+
+#settingsList .more summary {
+  width: fit-content;
+  list-style: none;
+  cursor: pointer;
+  font: italic 13px Palatino, Georgia, serif;
+  color: var(--gold-dim);
+}
+
+#settingsList .more summary::-webkit-details-marker {
+  display: none;
+}
+
+#settingsList .more summary::before {
+  content: "▸ ";
+}
+
+#settingsList .more[open] summary::before {
+  content: "▾ ";
+}
+
+#settingsList .more summary:hover {
+  color: var(--gold);
+}
+
+#settingsList .more summary:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+
+#settingsList .more p {
+  max-width: 62ch;
+  margin: 4px 0 2px;
+  font: 14px/1.5 Palatino, Georgia, serif;
+  color: #cbb89a;
+}
+
+#settingsList .more p.eg {
+  margin-bottom: 6px;
+  font-style: italic;
+  color: var(--gold);
+}
+
 @media (max-width: 620px) {
+  #settingsList .more {
+    margin-left: 0;
+  }
   #settingsList .row {
     grid-template-columns: 1fr auto;
   }

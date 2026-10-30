@@ -11,6 +11,7 @@ from pydantic import BaseModel
 from . import config, oracle, printer, sfx, variety, voice
 from .memory import GuestLog
 from .models import Fortune
+from .setting_help import HELP
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
 log = logging.getLogger("app")
@@ -74,7 +75,9 @@ async def get_config():
         "kid_flicker": config.KID_FLICKER,
         "timings": config.TIMINGS,
         "settings": [
-            {"section": s, "name": n, "value": v, "about": a, **config.CONTROLS[n]} for s, n, v, a in config.SETTINGS
+            {"section": s, "name": n, "value": v, "about": a, **config.CONTROLS[n],
+             "detail": HELP[n][0], "example": HELP[n][1]}
+            for s, n, v, a in config.SETTINGS
         ],
         "voices": _voices(),
         "guests": guests.count(),

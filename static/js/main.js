@@ -822,6 +822,17 @@ function showSettings(list) {
     what.textContent = about;
     row.append(code, cell, what);
     box.appendChild(row);
+    // The longer story, folded away under the row (not inside it: a click in a
+    // label would also flip its checkbox).
+    if (setting.detail) {
+      const more = el("details", { className: "more" });
+      more.append(
+        el("summary", { textContent: "What this does" }),
+        el("p", { textContent: setting.detail }),
+        el("p", { className: "eg", textContent: `Example: ${setting.example}` }),
+      );
+      box.appendChild(more);
+    }
   }
   fillVoiceChoice();
   $("settings").hidden = !list.length;
