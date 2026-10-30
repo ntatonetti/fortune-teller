@@ -39,7 +39,7 @@ With no keys at all she still runs, using canned fortunes and the built-in macOS
 
 **Keeping her fresh:** every stock line has two or three wordings and never repeats back to back. Each fortune gets a lucky number she hasn't used recently and a random sign to read from (a tarot card, tea leaves, a raven, a cracked mirror and so on), with gentler options for kids. She's also told her recent greetings and fortunes, so she avoids reusing their openings, omens and tasks.
 
-**Her signature lines:** `server/phrases.py` holds wording we wrote for her ("Hold still... the gears are turning for you.", "Go now... before the clockwork changes its mind."). Each greeting is offered three greeting lines and uses one if it fits. Each fortune is offered a few lines for two of its three places (opening, middle, close) and works in two, writing the rest itself. Kids only get the kid lines. To change how she talks, edit the lists and restart the server.
+**Her signature lines:** `server/phrases.py` holds wording we wrote for her ("Hold still... the gears are turning for you.", "Go now... before the clockwork changes its mind."). Each greeting is offered three greeting lines and uses one if it fits. Each fortune is offered a few lines for two of its three places (opening, middle, close) and works in two, writing the rest itself. Kids only get the kid lines. Every line has odds in front of it, e.g. `(3, "Mark me well...")`: a 3 is offered three times as often as a 1, and 0 turns a line off. Our classic lines start at 3 and the crazier ones at 1. To change how she talks, edit the lines or their odds and restart the server.
 
 ### Try it without any hardware
 
