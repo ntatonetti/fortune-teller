@@ -136,9 +136,8 @@ export class Puppet {
     this.ctx = canvas.getContext("2d");
     // What the state machine asks for...
     this.target = {
-      tilt: 0, // degrees, + is toward her right shoulder
       turn: 0, // -1..1 small head shift
-      slump: 1, // 0 upright .. 1 asleep, head dropped
+      dim: 1, // 0 lit .. 1 asleep, her light turned down (her head never moves: she's projected on a mannequin)
       lidL: 0, // 0 closed .. 1 open
       lidR: 0,
       eyeX: 0, // -1..1, screen space
@@ -157,7 +156,7 @@ export class Puppet {
     this._lastServo = 0;
     this._last = performance.now();
     // Her timings in seconds, replaced by the server's (.env) once they arrive.
-    this.timing = { head_move: 0.9, blink_min: 2.5, blink_max: 7.5, blink: 0.17, glimpse_min: 0.33, glimpse_max: 0.58, glimpse_gap_min: 0.42, glimpse_gap_max: 0.83, look_side: 0.35, glance_min: 5, glance_max: 14, glance: 0.9 };
+    this.timing = { dim: 0.9, blink_min: 2.5, blink_max: 7.5, blink: 0.17, glimpse_min: 0.33, glimpse_max: 0.58, glimpse_gap_min: 0.42, glimpse_gap_max: 0.83, look_side: 0.35, glance_min: 5, glance_max: 14, glance: 0.9 };
     this._blinkAt = performance.now() + 3000;
     this._blinkTicks = 0;
     this._jitter = { x: 0, y: 0, r: 0 };
@@ -283,9 +282,8 @@ export class Puppet {
       const d = t[key] - p[key];
       p[key] += Math.abs(d) <= maxStep ? d : Math.sign(d) * maxStep;
     };
-    step("tilt", 2.5);
     step("turn", 0.12);
-    step("slump", 1 / ticks(this.timing.head_move));
+    step("dim", 1 / ticks(this.timing.dim));
     step("lidL", 0.34);
     step("lidR", 0.34);
     step("brow", 0.25);
@@ -302,7 +300,7 @@ export class Puppet {
     }
     // Awake, she glances away now and then (her photograph's eyes only).
     if (this._glance && now > this._glanceEnd) this._glance = null;
-    if (p.slump > 0 || this.trance || !(this.timing.glance > 0)) this._glanceAt = 0;
+    if (p.dim > 0 || this.trance || !(this.timing.glance > 0)) this._glanceAt = 0;
     else if (!this._glance && now > this._glanceAt) {
       if (this._glanceAt) {
         this._glance = ["look-left", "look-right", "look-up", "look-down"][Math.floor(Math.random() * 4)];
@@ -315,11 +313,11 @@ export class Puppet {
     this._mouth = v < 0.08 ? 0 : v < 0.2 ? 1 : v < 0.4 ? 2 : 3;
     if (this.shake > 0) {
       this.shake--;
-      this._jitter = { x: (Math.random() - 0.5) * 14, y: (Math.random() - 0.5) * 8, r: (Math.random() - 0.5) * 9 };
+      this._jitter = { x: (Math.random() - 0.5) * 14, y: (Math.random() - 0.5) * 8 };
       p.eyeX = Math.random() * 2 - 1;
       p.eyeY = Math.random() * 2 - 1;
     } else {
-      this._jitter = { x: 0, y: 0, r: 0 };
+      this._jitter = { x: 0, y: 0 };
     }
     // The flicker runs on the servo clock too: a few uneven glimpses of the
     // guest, then she is herself again.
@@ -358,18 +356,16 @@ export class Puppet {
     this._gears();
     this._torso();
     this._head(time);
+    this._dimmed(1 - this._power());
     this._ball(time);
     this._hands();
     this._vignette();
   }
 
-  // Her photograph as it is this tick. Her head snaps between slumped and
-  // upright (a fade would show two heads), and comes up with the eyes still
-  // shut; asleep, an eye cracks open to peek.
+  // Her photograph as it is this tick. Asleep she is the same, only dimmed.
   _portraitNow(time) {
     const p = this.pose;
     if (this.mode === "head" && this.preview) return this.portrait.compose(Math.floor(time) % 2 ? 3 : 0);
-    if (p.slump > 0.5) return this.portrait.compose(0, null, false, Math.max(p.lidL, p.lidR) > 0.5 ? "asleep-peek" : "asleep");
     return this.portrait.compose(this._mouth, this._eyesNow(), p.brow > 0.5);
   }
 
@@ -379,7 +375,7 @@ export class Puppet {
     const p = this.pose;
     const lids = (p.lidL + p.lidR) / 2;
     const side = this.timing.look_side ?? 0.35;
-    if (this._blinkTicks > 0 || lids < 0.25 || p.slump > 0.1) return "blink";
+    if (this._blinkTicks > 0 || lids < 0.25) return "blink";
     if (this.trance) return "trance";
     if (this._glance) return this._glance;
     if (Math.abs(p.eyeX) >= side && Math.abs(p.eyeX) >= Math.abs(p.eyeY)) return p.eyeX < 0 ? "look-left" : "look-right";
@@ -397,6 +393,7 @@ export class Puppet {
     const oy = (H - pt.height * k) / 2 + this._jitter.y;
     const at = (p) => ({ x: ox + p.x * k, y: oy + p.y * k });
     c.drawImage(this._portraitNow(time), ox, oy, pt.width * k, pt.height * k);
+    this._dimmed(1 - this._power());
     const b = at(BALL);
     this._ballGlow(b.x, b.y, BALL.r * k, time);
     const g = this._guestWarp;
@@ -520,9 +517,8 @@ export class Puppet {
 
   _torso() {
     const c = this.ctx;
-    const slumpDrop = this.pose.slump * 10;
     c.save();
-    c.translate(0, 30 + slumpDrop);
+    c.translate(0, 30);
     // shawl
     const g = c.createLinearGradient(0, 480, 0, H);
     g.addColorStop(0, "#5b1a4a");
@@ -579,8 +575,7 @@ export class Puppet {
     // Mechanical tick-tock bob: one pixel, twice a second, never smooth.
     const bob = Math.floor(time * 2) % 2;
     const pivotX = 800 + p.turn * 18 + j.x;
-    const pivotY = 455 + p.slump * 38 + bob + j.y;
-    const tilt = ((p.tilt + p.slump * 14 + j.r) * Math.PI) / 180;
+    const pivotY = 455 + bob + j.y;
 
     // neck with a brass collar joint and rivets
     c.save();
@@ -603,7 +598,6 @@ export class Puppet {
 
     c.save();
     c.translate(pivotX, pivotY);
-    c.rotate(tilt);
     c.scale(0.92, 0.92);
 
     const faceY = -112; // chin overlaps the top of the neck
@@ -1007,6 +1001,28 @@ export class Puppet {
     }
   }
 
+  // How bright her face is lit. Asleep she is a dim gaslight; waking, the lamp
+  // sputters up to full.
+  _power() {
+    const p = this.pose;
+    if (this.preview) return 1;
+    let power = 1 - 0.72 * p.dim;
+    if (p.dim > 0.04 && p.dim < 0.96 && Math.random() < 0.35) power *= 0.45;
+    if (this.shake > 0 && Math.random() < 0.4) power *= 0.3 + Math.random() * 0.5;
+    return power;
+  }
+
+  // Darken everything drawn so far by `shade` (0..1).
+  _dimmed(shade) {
+    if (shade <= 0) return;
+    const c = this.ctx;
+    c.save();
+    c.setTransform(1, 0, 0, 1, 0, 0);
+    c.fillStyle = `rgba(0,0,0,${shade})`;
+    c.fillRect(0, 0, this.canvas.width, this.canvas.height);
+    c.restore();
+  }
+
   // ---------- head mode ----------
 
   _drawHead(time) {
@@ -1017,10 +1033,7 @@ export class Puppet {
 
     const hm = this.headmap;
     const p = this.pose;
-    // Asleep she is a dim gaslight; waking, the lamp sputters up to full.
-    let power = this.preview ? 1 : 1 - 0.72 * p.slump;
-    if (!this.preview && p.slump > 0.04 && p.slump < 0.96 && Math.random() < 0.35) power *= 0.45;
-    if (this.shake > 0 && Math.random() < 0.4) power *= 0.3 + Math.random() * 0.5;
+    const power = this._power();
 
     const face = hm.surfaces.face;
     this._onSurface(face, (c) => {

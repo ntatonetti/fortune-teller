@@ -59,7 +59,6 @@ const stillHere = () => {
 let nearSince = 0;
 let farSince = 0;
 let lastBeckon = 0;
-let nextTwitch = performance.now() + 8000;
 let sleepTalk = null; // what she's mumbling in her sleep, if anything
 let nextSleepTalk = 0;
 let dazedUntil = 0; // woken with a start: looking about, not at them yet
@@ -295,17 +294,17 @@ async function session(opts = {}) {
 async function wakeStartled() {
   dazedUntil = performance.now() + ms("wake_dazed") + 4000; // the mutter ends it sooner
   sound.snort();
-  puppet.set({ brow: 1, eyeX: 0, turn: 0, tilt: -6 });
+  puppet.set({ brow: 1, eyeX: 0, turn: 0 });
   const looks = [-0.8, 0.7, -0.3];
   const each = ms("wake_dazed") / (looks.length + 1);
   for (const x of looks) {
     await wait(each);
-    puppet.set({ eyeX: x, eyeY: -0.2, turn: x * 0.5, tilt: x * 6, lidL: 0.6, lidR: 0.8 });
+    puppet.set({ eyeX: x, eyeY: -0.2, turn: x * 0.5, lidL: 0.6, lidR: 0.8 });
   }
   await wait(each / 2);
   puppet.set({ lidL: 0.1, lidR: 0.1 }); // a slow blink
   await wait(each / 2);
-  puppet.set({ lidL: 1, lidR: 1, tilt: 0 });
+  puppet.set({ lidL: 1, lidR: 1 });
   await sayStock("wake_startled");
   dazedUntil = 0;
 }
@@ -334,7 +333,7 @@ async function runReading({ paid = false } = {}) {
   sound.musicBox(false);
   sound.grind(1.5);
   sound.clock(true);
-  puppet.set({ slump: 0, lidL: 1, lidR: 1, brow: 1 });
+  puppet.set({ dim: 0, lidL: 1, lidR: 1, brow: 1 });
   puppet.gearTarget = 0.6;
   puppet.ballTarget = 0.45;
   sound.ball(0.45);
@@ -403,7 +402,7 @@ async function consultAndSpeak() {
   puppet.ballTarget = 1;
   sound.ball(1);
   // Adults get the eyes rolled up into the head; kids see her gaze into the ball.
-  puppet.set(kid ? { eyeX: 0, eyeY: 1, lidL: 0.6, lidR: 0.6 } : { eyeX: 0, eyeY: -1, lidL: 0.35, lidR: 0.35, tilt: -6 });
+  puppet.set(kid ? { eyeX: 0, eyeY: 1, lidL: 0.6, lidR: 0.6 } : { eyeX: 0, eyeY: -1, lidL: 0.35, lidR: 0.35 });
   puppet.trance = !kid;
   // Her face and the guest's flicker back and forth while the spirits answer
   // (for kids only with KID_FLICKER).
@@ -436,7 +435,7 @@ async function consultAndSpeak() {
   puppet.gearTarget = 0.6;
   puppet.ballTarget = 0.55;
   sound.ball(0.55);
-  puppet.set({ lidL: 1, lidR: 1, tilt: 0 });
+  puppet.set({ lidL: 1, lidR: 1 });
   setPrompt("");
 
   if (!f) {
@@ -467,7 +466,7 @@ async function sleepAgain() {
   puppet.flicker = false;
   puppet.trance = false;
   puppet.guestFace = null; // forget their face
-  puppet.set({ slump: 1, lidL: 0, lidR: 0, brow: 0, tilt: 0, turn: 0, eyeX: 0, eyeY: 0 });
+  puppet.set({ dim: 1, lidL: 1, lidR: 1, brow: 0, turn: 0, eyeX: 0, eyeY: 0 }); // asleep: just dimmed
   puppet.gearTarget = 0.15;
   puppet.ballTarget = 0.15;
   sound.ball(0); // asleep: the music box plays alone
@@ -490,7 +489,7 @@ function lookAt(face, now) {
   // The camera faces the guest, so their left is the image's right.
   const ex = clamp((0.5 - face.x) * 2.4 * dir, -1, 1);
   const ey = clamp((face.y - 0.45) * 2, -1, 1) * 0.7;
-  puppet.set({ eyeX: ex, eyeY: ey, turn: ex * 0.6, tilt: ex * 3 });
+  puppet.set({ eyeX: ex, eyeY: ey, turn: ex * 0.6 });
 }
 
 function sleepLogic(now) {
@@ -508,13 +507,10 @@ function sleepLogic(now) {
     }
   } else nearSince = 0;
 
-  // Someone lingering at a distance: one eye cracks open and follows them.
+  // Someone lingering at a distance: her eyes follow them.
   if (face && !near) {
     farSince ||= now;
-    if (now - farSince > ms("peek_after")) {
-      puppet.set({ lidR: 0.7, lidL: 0 });
-      lookAt(face, now);
-    }
+    if (now - farSince > ms("peek_after")) lookAt(face, now);
     if (now - farSince > ms("beckon_after") && now - lastBeckon > ms("beckon_every") && !needsAbsence) {
       lastBeckon = now;
       sound.musicBox(false);
@@ -522,7 +518,7 @@ function sleepLogic(now) {
     }
   } else if (farSince) {
     farSince = 0;
-    puppet.set({ lidR: 0, lidL: 0, eyeX: 0, eyeY: 0, turn: 0, tilt: 0 });
+    puppet.set({ eyeX: 0, eyeY: 0, turn: 0 });
   }
 
   // Talk in her sleep while no one is about; hush once someone is (a face for a
@@ -533,14 +529,6 @@ function sleepLogic(now) {
   } else {
     faceSince = 0;
     if (!sleepTalk && T.sleep_talk > 0 && now > nextSleepTalk) talkInSleep();
-  }
-
-  // Twitch in her sleep now and then.
-  if (now > nextTwitch) {
-    nextTwitch = now + between(ms("twitch_min"), ms("twitch_max"));
-    sound.creak(0.18);
-    puppet.set({ tilt: (Math.random() - 0.5) * 10 });
-    setTimeout(() => state === "sleep" && puppet.set({ tilt: 0 }), ms("twitch_hold"));
   }
 }
 
@@ -725,7 +713,7 @@ window.addEventListener("keydown", (e) => {
 function applyServer() {
   puppet.flickers = server.flickers ?? 3;
   puppet.guestAlpha = server.flicker_opacity ?? 1;
-  if (server.timings) puppet.timing = T = server.timings;
+  if (server.timings) puppet.timing = T = { ...puppet.timing, ...server.timings }; // her defaults fill any gaps
 }
 
 async function refreshServer() {
@@ -850,15 +838,16 @@ function voiceChoice(name, value) {
   return [sel, hear];
 }
 
+// Her voice comes from the list (which always has the one she has); remove it
+// and she takes the first voice left.
 function fillVoiceChoice() {
   const sel = $("settingsList").querySelector("select.voice");
   if (!sel) return;
   const voices = readVoices();
-  const want = sel.dataset.want;
+  if (!voices.some((v) => v.id === sel.dataset.want)) sel.dataset.want = voices[0]?.id || sel.dataset.was;
   sel.innerHTML = "";
-  if (want && !voices.some((v) => v.id === want)) voices.unshift({ name: "Original", id: want });
   for (const v of voices) sel.append(el("option", { value: v.id, textContent: v.name }));
-  sel.value = want;
+  sel.value = sel.dataset.want;
 }
 
 // VOICES: a row per voice (name, id, Hear, Remove) and a row to add one. A
@@ -866,6 +855,9 @@ function fillVoiceChoice() {
 function voiceList(name, value) {
   const text = (vs) => vs.map((v) => `${v.name}=${v.id}`).join(", ");
   const hidden = el("input", { type: "hidden", name, value: text(value) });
+  // The voice she has is always listed, to keep or remove like the others.
+  const has = server.settings?.find((s) => s.kind === "voice")?.value;
+  if (has && !value.some((v) => v.id === has)) value = [{ name: "Original", id: has }, ...value];
   hidden.dataset.was = hidden.value;
   const list = el("span", { className: "voices" });
   const sync = () => {
@@ -881,7 +873,9 @@ function voiceList(name, value) {
     const hear = el("button", { type: "button", className: "small", textContent: "Hear" });
     hear.addEventListener("click", () => hearVoice(id, hear));
     const drop = el("button", { type: "button", className: "small", textContent: "Remove" });
-    drop.addEventListener("click", () => (r.remove(), sync()));
+    drop.addEventListener("click", () => {
+      if (list.children.length > 1) r.remove(), sync(); // she needs one voice
+    });
     r.append(n, i, hear, drop);
     list.append(r);
   };

@@ -2,18 +2,18 @@
 // changes between AI-edited frames on her servo tick. The frames differ from
 // base.png only in her face, so just a feathered patch of each is laid over it:
 // the eyes of one frame (shut, looking off, rolled back) can then go over the
-// mouth and brows of others. Asleep, the whole frame is shown.
+// mouth and brows of others.
 
 const DIR = "/img/mechanika/";
 
 // Where things are in the 1376 x 768 pictures. Her eyes and mouth are where the
 // face mesh finds them on base.png (iris centres, middle of the lips), the same
 // way the guest's are found, so the two line up.
-export const MARKS = { eyes: [{ x: 675, y: 190 }, { x: 745, y: 189 }], mouth: { x: 709, y: 265 } };
-export const BALL = { x: 700, y: 526, r: 89 };
-const FACE = { x: 708, y: 232, rx: 112, ry: 128 }; // forehead to dropped chin
-const EYES = { x: 708, y: 188, rx: 88, ry: 30 };
-const BROWS = { x: 704, y: 160, rx: 110, ry: 46 }; // brows and the eyes under them
+export const MARKS = { eyes: [{ x: 658, y: 213 }, { x: 729, y: 212 }], mouth: { x: 694, y: 276 } };
+export const BALL = { x: 691, y: 587, r: 78 };
+const FACE = { x: 693, y: 255, rx: 105, ry: 125 }; // forehead to dropped chin
+const EYES = { x: 693, y: 214, rx: 80, ry: 28 };
+const BROWS = { x: 693, y: 185, rx: 100, ry: 42 }; // brows and the eyes under them
 // Her eyes: each frame only differs from base.png there.
 export const EYE_FRAMES = ["blink", "eyes-half", "look-left", "look-right", "look-up", "look-down", "trance"];
 
@@ -46,7 +46,7 @@ function patch(img, { x, y, rx, ry }) {
 export class Portrait {
   // Null if the pictures aren't there, and she stays drawn.
   static async load() {
-    const names = ["base", "mouth-1", "mouth-2", "mouth-3", "brows-up", "asleep", "asleep-peek", ...EYE_FRAMES];
+    const names = ["base", "mouth-1", "mouth-2", "mouth-3", "brows-up", ...EYE_FRAMES];
     const imgs = await Promise.all(names.map(loadImage));
     if (imgs.some((i) => !i)) return null;
     return new Portrait(Object.fromEntries(names.map((n, i) => [n, imgs[i]])));
@@ -54,7 +54,6 @@ export class Portrait {
 
   constructor(imgs) {
     this.base = imgs.base;
-    this.sleeping = { asleep: imgs.asleep, "asleep-peek": imgs["asleep-peek"] };
     this.width = imgs.base.width;
     this.height = imgs.base.height;
     this.mouths = [null, ...["mouth-1", "mouth-2", "mouth-3"].map((n) => patch(imgs[n], FACE))];
@@ -67,10 +66,8 @@ export class Portrait {
   }
 
   // Her face as it is this tick: mouth 0 (shut) to 3 (wide), her eyes (one of
-  // EYE_FRAMES, or null for as in base.png), brows raised or not; or slumped
-  // "asleep" or "asleep-peek".
-  compose(mouth, eyes = null, brows = false, asleep = null) {
-    if (asleep) return this.sleeping[asleep];
+  // EYE_FRAMES, or null for as in base.png), brows raised or not.
+  compose(mouth, eyes = null, brows = false) {
     const key = `${mouth}${eyes}${brows}`;
     if (key === this._key) return this.canvas;
     this._key = key;
