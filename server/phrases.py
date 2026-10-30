@@ -25,6 +25,16 @@ ADULT = {
         "Let me look deeper... past the costume, to the soul wearing it.",
         "The mist parts... and I see...",
         "Your coin is still warm... it remembers where it has been.",
+        # crazier-2026-10-29
+        "Do not look at my left eye... it has been places you have not.",
+        # crazier-2026-10-29
+        "Shh... the crystal ball is dreaming about you... let it finish.",
+        # crazier-2026-10-29
+        "I died in 1931... briefly. It was very educational.",
+        # crazier-2026-10-29
+        "You! The pigeons warned me about you.",
+        # crazier-2026-10-29
+        "Hold on... one of my gears just whispered a word I am not allowed to repeat.",
     ],
     "for the middle": [
         "Mark me well...",
@@ -33,6 +43,16 @@ ADULT = {
         "Something follows you tonight... it is mostly harmless.",
         "The spirits are giggling... that is rarely a good sign.",
         "I have seen this once before, in 1926... it ended in a waltz.",
+        # crazier-2026-10-29
+        "Your future is perfectly clear... which is the most frightening thing I can tell you.",
+        # crazier-2026-10-29
+        "Three ravens and a raccoon agree on this... the raccoon was very insistent.",
+        # crazier-2026-10-29
+        "I see a door... behind it, another door... behind that, a man selling soup. Do not buy the soup.",
+        # crazier-2026-10-29
+        "The spirits took a vote... it was close... one of them abstained.",
+        # crazier-2026-10-29
+        "Somewhere a goat is thinking about you right now... respect the goat.",
     ],
     "to close with": [
         "The fates have spoken... and they never repeat themselves.",
@@ -40,6 +60,16 @@ ADULT = {
         "Take your ticket... and tell no one what it says. Or everyone.",
         "My springs wind down... the reading is done.",
         "Remember this night... I certainly will.",
+        # crazier-2026-10-29
+        "Now go... my knees are unwinding and it is not dignified.",
+        # crazier-2026-10-29
+        "And if a moth whispers your name tonight... do not answer it.",
+        # crazier-2026-10-29
+        "Take your ticket... it is legally binding in four dimensions.",
+        # crazier-2026-10-29
+        "The reading is over... I am going to scream quietly in the dark for a while. Do not worry about it.",
+        # crazier-2026-10-29
+        "Off with you... and tell the raccoon I said nothing.",
     ],
 }
 
@@ -77,4 +107,5 @@ def for_fortune(kid: bool, rng=random) -> str:
     # Only two of the three places each time, so readings don't all open, turn and close the same way.
     places = rng.sample(list((KIDS if kid else ADULT).items()), 2)
     groups = "\n".join(f"{where}: " + " / ".join(f'"{l}"' for l in rng.sample(lines, 2)) for where, lines in places)
-    return f"\n\nSome of your signature lines. Use one from each place, at most two in all:\n{groups}\n{_RULE}"
+    adult_only = "" if kid else " These are ADULT lines: if you see a child after all, use none of them."
+    return f"\n\nSome of your signature lines. Use one from each place, at most two in all:\n{groups}\n{_RULE}{adult_only}"
