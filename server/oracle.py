@@ -12,7 +12,7 @@ import logging
 import anthropic
 from pydantic import ValidationError
 
-from . import config, fallback_fortunes, steer, variety
+from . import config, fallback_fortunes, phrases, variety
 from .models import Fortune, Greeting
 
 log = logging.getLogger("oracle")
@@ -163,7 +163,7 @@ async def greet(jpeg_b64: str) -> Greeting:
                 "type": "text",
                 "text": "Someone is approaching your booth and you are stirring awake. Look through the glass: who is there, and how do you greet them? Pick ADULT or CHILD mode from what you see."
                 + _avoid("Greetings you already used tonight", variety.recent_greetings)
-                + steer.prompt(steer.next_guest),
+                + phrases.for_greeting(),
             },
         ],
         timeout=config.GREET_TIMEOUT_S,
@@ -186,7 +186,6 @@ async def fortune(
     recent_guests: list[dict],
     question: str = "",
     paid_with: str = "",
-    steer_note: str = "",
 ) -> Fortune:
     question = question.strip()[:500]
     kid = is_childlike(audience_hint)
@@ -229,7 +228,7 @@ async def fortune(
                     f"{payment} Earlier you noticed: {costume_hint or 'unknown'}."
                     " Look closely through the glass and tell their fortune. Make it specific to what you see."
                     f" Read it from {sign}. Their lucky number is {lucky}."
-                    f"{asked}{child_note}{memory}{told}{steer.prompt(steer_note)}"
+                    f"{asked}{child_note}{memory}{told}{phrases.for_fortune(kid)}"
                 ),
             },
         ],
