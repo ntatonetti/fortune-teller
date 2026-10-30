@@ -42,6 +42,7 @@ class Frame(BaseModel):
     costume: str = ""
     question: str = ""
     paid_with: str = ""  # "coin" | "secret" | ""
+    max_words: int = 0  # debug: cap what she says (?brief in the URL); 0 = full length
 
 
 def _b64(image: str) -> str:
@@ -73,7 +74,7 @@ async def get_config():
 
 @app.post("/api/greet")
 async def greet(frame: Frame):
-    g = await oracle.greet(_b64(frame.image))
+    g = await oracle.greet(_b64(frame.image), max_words=frame.max_words)
     log.info("greet: audience=%s size=%d costume=%r source=%s", g.audience, g.group_size, g.costume, g.source)
     audio = await voice.speak(g.greeting) if g.audience != "nobody" else None
     return {**g.model_dump(), "audio": _audio_url(audio)}
@@ -88,6 +89,7 @@ async def fortune(frame: Frame):
         guests.recent(config.MEMORY_RECALL),
         question=frame.question,
         paid_with=frame.paid_with,
+        max_words=frame.max_words,
     )
     log.info(
         "fortune: audience=%s paid=%s asked=%s title=%r source=%s",

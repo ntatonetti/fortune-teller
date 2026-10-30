@@ -144,6 +144,18 @@ async def _ask(schema: dict, effort: str, max_tokens: int, content: list, timeou
         return None
 
 
+def _brief(field: str, max_words: int) -> str:
+    """Debug (?brief in the URL): a short reading, so testing isn't spent listening to her."""
+    if not max_words:
+        return ""
+    return f"\n\nDEBUG: keep `{field}` to at most {max_words} words. This overrides every other length or content guidance above; skip signature lines if they don't fit."
+
+
+def _cap(text: str, max_words: int) -> str:
+    words = text.split()
+    return text if not max_words or len(words) <= max_words else " ".join(words[:max_words]) + "..."
+
+
 def _avoid(label: str, lines) -> str:
     lines = [l for l in lines if l]
     if not lines:
@@ -152,7 +164,7 @@ def _avoid(label: str, lines) -> str:
     return f"\n\n{label}. Do not reuse their openings, phrasing, imagery, or ideas; sound fresh:\n{listed}"
 
 
-async def greet(jpeg_b64: str) -> Greeting:
+async def greet(jpeg_b64: str, max_words: int = 0) -> Greeting:
     data = await _ask(
         GREET_SCHEMA,
         config.GREET_EFFORT,
@@ -163,20 +175,23 @@ async def greet(jpeg_b64: str) -> Greeting:
                 "type": "text",
                 "text": "Someone is approaching your booth and you are stirring awake. Look through the glass: who is there, and how do you greet them? Pick ADULT or CHILD mode from what you see."
                 + _avoid("Greetings you already used tonight", variety.recent_greetings)
-                + phrases.for_greeting(),
+                + phrases.for_greeting()
+                + _brief("greeting", max_words),
             },
         ],
         timeout=config.GREET_TIMEOUT_S,
     )
+    g = None
     if data:
         try:
             g = Greeting(**data)
             if g.audience != "nobody":
                 variety.recent_greetings.append(g.greeting)
-            return g
         except ValidationError as e:
             log.warning("Bad greeting shape: %s", e)
-    return fallback_fortunes.greeting()
+    g = g or fallback_fortunes.greeting()
+    g.greeting = _cap(g.greeting, max_words)
+    return g
 
 
 async def fortune(
@@ -186,6 +201,7 @@ async def fortune(
     recent_guests: list[dict],
     question: str = "",
     paid_with: str = "",
+    max_words: int = 0,
 ) -> Fortune:
     question = question.strip()[:500]
     kid = is_childlike(audience_hint)
@@ -228,23 +244,25 @@ async def fortune(
                     f"{payment} Earlier you noticed: {costume_hint or 'unknown'}."
                     " Look closely through the glass and tell their fortune. Make it specific to what you see."
                     f" Read it from {sign}. Their lucky number is {lucky}."
-                    f"{asked}{child_note}{memory}{told}{phrases.for_fortune(kid)}"
+                    f"{asked}{child_note}{memory}{told}{phrases.for_fortune(kid)}{_brief('spoken', max_words)}"
                 ),
             },
         ],
         timeout=config.FORTUNE_TIMEOUT_S,
     )
+    result = None
     if data:
         try:
             result = Fortune(**data, question=question)
             # Stay on the cautious side: once a child was seen, it is a child reading.
             if is_childlike(audience_hint) and not is_childlike(result.audience):
                 result.audience = audience_hint
-            return result
         except ValidationError as e:
             log.warning("Bad fortune shape: %s", e)
-    audience = audience_hint if audience_hint in ("adult", "child", "mixed") else "child"
-    result = fallback_fortunes.fortune(audience, costume_hint)
-    result.question = question
+    if result is None:
+        audience = audience_hint if audience_hint in ("adult", "child", "mixed") else "child"
+        result = fallback_fortunes.fortune(audience, costume_hint)
+        result.question = question
+    result.spoken = _cap(result.spoken, max_words)
     return result
 

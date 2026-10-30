@@ -46,6 +46,7 @@ With no keys at all she still runs, using canned fortunes and the built-in macOS
 - Walk up to the laptop camera. She wakes when your face is close enough, and **[** / **]** adjust how close that is. **D** shows what the camera sees, with face boxes: yellow means seen, green means close enough to wake her.
 - **Space** is the gold coin. **W** wakes her manually. Talk when she asks for a secret or a question; Chrome asks for mic permission once, when you click Awaken.
 - **A** forces adult or child mode, and **G** makes the next adult reading glitch.
+- To test the guest's side without sitting through her full readings, open **http://localhost:8000/?brief**. Her greeting and fortune are then capped at 20 words (`?brief=30` for 30). Her fixed lines and all the timings stay the same. The setting is never saved, so a plain page load is always the full reading.
 - Printed tickets show up in the server terminal until a real printer is connected.
 
 ## Keys and voices

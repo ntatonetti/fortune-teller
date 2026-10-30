@@ -247,7 +247,7 @@ def test_question_and_payment_reach_the_prompt(monkeypatch):
 def test_secret_text_is_never_accepted_or_logged(monkeypatch):
     seen = {}
 
-    async def fake_fortune(image, audience, costume, recent, question="", paid_with=""):
+    async def fake_fortune(image, audience, costume, recent, question="", paid_with="", max_words=0):
         seen.update(question=question, paid_with=paid_with)
         return __import__("server.fallback_fortunes", fromlist=["x"]).fortune("adult", costume)
 
