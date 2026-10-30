@@ -174,7 +174,8 @@ export class Puppet {
     this._flickers = 0; // glimpses so far this consult
     this.portrait = null; // her photograph, once loaded; drawn porcelain until then
     Portrait.load().then((p) => (this.portrait = p));
-    this.jawLevel = 0; // raw voice level, for the photograph's three mouths
+    this.jawLevel = 0; // voice level against her recent peak, for the photograph's mouths
+    this._jawPeak = 0.05;
     this._mouth = 0;
     this.resize();
     window.addEventListener("resize", () => this.resize());
@@ -195,9 +196,14 @@ export class Puppet {
   }
 
   setJaw(level) {
-    this.jawLevel = level;
+    // Measured against her own recent peak, not a fixed loudness: her voice is
+    // loud nearly throughout, so fixed steps held the mouth wide open. Against
+    // the peak it shuts between syllables and drops on each one.
+    this._jawPeak = Math.max(level, this._jawPeak * 0.995, 0.05);
+    const r = level / this._jawPeak;
+    this.jawLevel = r;
     // A wooden jaw has three positions: shut, ajar, open.
-    this.jaw = level < 0.08 ? 0 : level < 0.25 ? 0.5 : 1;
+    this.jaw = r < 0.45 ? 0 : r < 0.8 ? 0.5 : 1;
   }
 
   glitch(seconds) {
@@ -312,7 +318,7 @@ export class Puppet {
     // The photograph's mouth: shut, then three openings, set on the servo clock,
     // no wider than MOUTH_OPEN.
     const v = this.jawLevel;
-    this._mouth = Math.min(v < 0.08 ? 0 : v < 0.2 ? 1 : v < 0.4 ? 2 : 3, this.timing.mouth_open ?? 2);
+    this._mouth = Math.min(v < 0.45 ? 0 : v < 0.8 ? 1 : v < 0.95 ? 2 : 3, this.timing.mouth_open ?? 2);
     if (this.shake > 0) {
       this.shake--;
       this._jitter = { x: (Math.random() - 0.5) * 14, y: (Math.random() - 0.5) * 8 };
