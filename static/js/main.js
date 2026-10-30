@@ -712,6 +712,7 @@ window.addEventListener("keydown", (e) => {
 // The server's settings, into her.
 function applyServer() {
   puppet.flickers = server.flickers ?? 3;
+  puppet.flickerWhere = server.flicker_where ?? "ball";
   puppet.guestAlpha = server.flicker_opacity ?? 1;
   if (server.timings) puppet.timing = T = { ...puppet.timing, ...server.timings }; // her defaults fill any gaps
 }
@@ -859,10 +860,12 @@ function fillVoiceChoice(want) {
 function voiceList(name, value) {
   const text = (vs) => vs.map((v) => `${v.name}=${v.id}`).join(", ");
   const hidden = el("input", { type: "hidden", name, value: text(value) });
-  // The voice she has is always listed, to keep or remove like the others.
+  hidden.dataset.was = hidden.value;
+  // The voice she has is always listed, to keep or remove like the others, and
+  // saved into VOICES with the rest, so it stays listed after she switches.
   const has = server.settings?.find((s) => s.kind === "voice")?.value;
   if (has && !value.some((v) => v.id === has)) value = [{ name: "Original", id: has }, ...value];
-  hidden.dataset.was = hidden.value;
+  hidden.value = text(value);
   const list = el("span", { className: "voices" });
   const sync = () => {
     hidden.value = text(readVoices(list));

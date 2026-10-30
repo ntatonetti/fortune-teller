@@ -110,9 +110,10 @@ MEMORY_RECALL = _setting("MEMORY_RECALL", 15, "how many earlier guests she recal
 MEMORY_MAX_AGE_H = _setting("MEMORY_MAX_AGE_H", 12, "guests older than this many hours are forgotten", span=[1, 48, 1])
 
 _section = "The guest's face in hers"
-FACE_FLICKERS = _setting("FACE_FLICKERS", 3, "times the guest's face flickers up in her crystal ball while she consults (0 = never)", int, span=[0, 10, 1])
-FLICKER_OPACITY = _setting("FLICKER_OPACITY", 1, "how solid their face is in the ball: 1 = solid, 0.5 = half mist", span=[0, 1, 0.05])
-KID_FLICKER = _setting("KID_FLICKER", False, "kids see their own face in the ball too", bool)
+FLICKER_WHERE = _setting("FLICKER_WHERE", "ball", "where the guest's face flickers up: ball = in her crystal ball, face = over her face", str, ["ball", "face"])
+FACE_FLICKERS = _setting("FACE_FLICKERS", 3, "times the guest's face flickers up while she consults (0 = never)", int, span=[0, 10, 1])
+FLICKER_OPACITY = _setting("FLICKER_OPACITY", 1, "how solid their face is: 1 = solid, 0.5 = half mist", span=[0, 1, 0.05])
+KID_FLICKER = _setting("KID_FLICKER", False, "kids see their own face too", bool)
 
 # Every pause, wait and transition in a reading, in seconds unless noted.
 # Sent to the browser as {"wake_hold": 0.7, ...} (the env name, lowercase,

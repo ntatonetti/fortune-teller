@@ -69,6 +69,7 @@ async def get_config():
         "name": config.ORACLE_NAME,
         "printer": config.PRINTER,
         "flickers": config.FACE_FLICKERS,
+        "flicker_where": config.FLICKER_WHERE,
         "flicker_opacity": config.FLICKER_OPACITY,
         "kid_flicker": config.KID_FLICKER,
         "timings": config.TIMINGS,

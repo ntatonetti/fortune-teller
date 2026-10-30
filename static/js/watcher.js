@@ -44,7 +44,7 @@ export class Watcher {
       FaceLandmarker.createFromOptions(fileset, {
         baseOptions: { modelAssetPath: "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task" },
         runningMode: "IMAGE",
-        numFaces: 1,
+        numFaces: 3, // the crop can catch a face behind theirs; _mesh keeps the biggest
       })
         .then((l) => (this.landmarker = l))
         .catch((e) => console.warn("no face mesh; the flicker lines up from the detector's keypoints", e));
@@ -141,7 +141,8 @@ export class Watcher {
   _mesh(crop) {
     let lm;
     try {
-      lm = this.landmarker?.detect(crop).faceLandmarks?.[0];
+      const span = (f) => Math.max(...f.map((q) => q.x)) - Math.min(...f.map((q) => q.x));
+      lm = this.landmarker?.detect(crop).faceLandmarks?.reduce((a, f) => (!a || span(f) > span(a) ? f : a), null);
     } catch (e) {
       console.warn("face mesh failed", e);
     }
