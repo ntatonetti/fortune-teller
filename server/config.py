@@ -46,5 +46,8 @@ MEMORY_FILE = Path(os.getenv("MEMORY_FILE", str(ROOT / "data" / "guests.json")))
 MEMORY_RECALL = int(os.getenv("MEMORY_RECALL", "15"))
 MEMORY_MAX_AGE_H = float(os.getenv("MEMORY_MAX_AGE_H", "12"))  # older guests are forgotten
 
+# Glimpses of the guest's face over hers while she consults; 0 turns it off
+FACE_FLICKERS = int(os.getenv("FACE_FLICKERS", "3"))
+
 CACHE_DIR = ROOT / "data" / "tts_cache"
 SFX_DIR = ROOT / "static" / "sfx"  # committed; regenerate with scripts/make_sfx.py

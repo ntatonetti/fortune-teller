@@ -63,6 +63,7 @@ async def get_config():
         "claude": bool(config.ANTHROPIC_API_KEY),
         "voice": voice.provider(),
         "printer": config.PRINTER,
+        "flickers": config.FACE_FLICKERS,
         "guests": guests.count(),
         "stock": {
             k: [{"url": _audio_url(name), "text": text} for name, text in zip(names, voice.STOCK_LINES[k])]

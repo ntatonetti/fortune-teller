@@ -52,7 +52,8 @@ export class Puppet {
     this.flicker = false; // while consulting: her face and the guest's trade places
     this._guestShown = 0; // 0 her, 1 the guest
     this._flickerHold = 0;
-    this._flickers = 0; // glimpses of the guest so far this consult
+    this.flickers = 3; // glimpses of the guest per consult (FACE_FLICKERS in .env)
+    this._flickers = 0; // glimpses so far this consult
     this.resize();
     window.addEventListener("resize", () => this.resize());
   }
@@ -169,7 +170,7 @@ export class Puppet {
     } else {
       this._jitter = { x: 0, y: 0, r: 0 };
     }
-    // The flicker runs on the servo clock too: three uneven glimpses of the
+    // The flicker runs on the servo clock too: a few uneven glimpses of the
     // guest, then she is herself again.
     if (!this.flicker || !this.guestFace) {
       this._guestShown = 0;
@@ -178,7 +179,7 @@ export class Puppet {
       if (this._guestShown) {
         this._guestShown = 0;
         this._flickerHold = 5 + Math.floor(Math.random() * 6);
-      } else if (this._flickers < 3) {
+      } else if (this._flickers < this.flickers) {
         this._flickers++;
         this._guestShown = 1;
         this._flickerHold = 4 + Math.floor(Math.random() * 4);

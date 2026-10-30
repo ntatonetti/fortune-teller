@@ -20,6 +20,7 @@ def test_endpoints_fall_back_without_claude():
         cfg = client.get("/api/config").json()
         assert cfg["claude"] is False
         assert cfg["voice"] == "macos-say"
+        assert cfg["flickers"] == 3
         assert set(cfg["stock"]) >= {"invite_adult", "invite_child", "farewell_child"}
         assert all(v["url"] for variants in cfg["stock"].values() for v in variants)
         assert len(cfg["stock"]["invite_adult"]) >= 2  # several wordings per line
