@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>What she costs</title>
+    <style>
+      :root {
+        --paper: #e3e7dc;
+        --sheet: #f1f3ec;
+        --ink: #22302c;
+        --muted: #5e6b64;
+        --rule: #b9c1b2;
+        --brass: #8c6a1f;
+        --oxblood: #7b2632;
+        --her: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+        --ui: system-ui, -apple-system, "Segoe UI", sans-serif;
+        /* Claude in brass, her voice in green */
+        --greet: #c9a24a;
+        --asked: #e3cf96;
+        --fortune: #7a5a12;
+        --voice_greet: #8fae9b;
+        --voice_fortune: #3d6650;
+      }
+      * { box-sizing: border-box; }
+      body { margin: 0; background: var(--paper); color: var(--ink); font: 15px/1.45 var(--ui); }
+      header { padding: 28px 32px 18px; border-bottom: 1px solid var(--rule); }
+      h1 { margin: 0 0 4px; font: 400 34px/1.1 var(--her); letter-spacing: -0.01em; }
+      .lede { margin: 0 0 18px; color: var(--muted); max-width: 70ch; }
+      .controls { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: center; }
+      select {
+        font: inherit; color: var(--ink); background: var(--sheet);
+        border: 1px solid var(--rule); border-radius: 4px; padding: 6px 9px;
+      }
+      a { color: var(--brass); }
+      :focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
+      main { padding: 28px 32px 64px; max-width: 980px; }
+      .empty { padding: 12px 0; color: var(--muted); max-width: 60ch; }
+
+      .headline { margin: 0; font: 400 52px/1 var(--her); font-variant-numeric: lining-nums; }
+      .headline small { font-size: 20px; color: var(--muted); margin-left: 6px; }
+      .sub { margin: 8px 0 22px; color: var(--muted); }
+      .sub b { color: var(--ink); font-weight: 600; }
+
+      .bar { display: flex; height: 44px; border-radius: 3px; overflow: hidden; background: var(--sheet); gap: 2px; }
+      .bar span { min-width: 2px; }
+
+      table { width: 100%; border-collapse: collapse; margin-top: 26px; font-variant-numeric: tabular-nums; }
+      th { text-align: right; font-size: 13px; font-weight: 600; color: var(--muted); padding: 0 0 8px 14px; border-bottom: 1px solid var(--rule); }
+      th:first-child, td:first-child { text-align: left; padding-left: 0; }
+      td { text-align: right; padding: 10px 0 10px 14px; border-bottom: 1px solid var(--rule); white-space: nowrap; }
+      td:first-child { white-space: normal; }
+      td.big { font: 17px var(--her); }
+      .swatch { display: inline-block; width: 12px; height: 12px; border-radius: 2px; margin-right: 8px; vertical-align: -1px; }
+      .muted { color: var(--muted); }
+      .fail { color: var(--oxblood); }
+      tfoot td { border-bottom: 0; font-weight: 600; }
+
+      .notes { margin-top: 30px; color: var(--muted); max-width: 72ch; }
+      .notes p { margin: 0 0 8px; }
+      .warn { color: var(--oxblood); }
+
+      @media (max-width: 720px) {
+        header, main { padding-left: 16px; padding-right: 16px; }
+        .headline { font-size: 40px; }
+        .wide { display: none; }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>What she costs</h1>
+      <p class="lede">
+        What each stage of a reading costs in Claude and her voice, worked out from <a href="/history.html">her history</a>.
+        Use it to see which stages are worth trimming.
+      </p>
+      <div class="controls">
+        <label>Day <select id="day"><option value="">Every day kept</option></select></label>
+      </div>
+    </header>
+    <main id="out"></main>
+
+    <script>
+      const $ = (id) => document.getElementById(id);
+
+      function el(tag, attrs = {}, ...kids) {
+        const n = document.createElement(tag);
+        for (const [k, v] of Object.entries(attrs)) k === "text" ? (n.textContent = v) : n.setAttribute(k, v);
+        for (const k of kids) if (k != null) n.append(k);
+        return n;
+      }
+
+      // Enough digits to tell a tenth of a cent from a whole one.
+      function money(v) {
+        if (v == null) return "–";
+        if (v === 0) return "$0";
+        const digits = Math.min(5, Math.max(2, 1 - Math.floor(Math.log10(v))));
+        return "$" + v.toFixed(digits);
+      }
+      const num = (n) => n.toLocaleString();
+      const pct = (s) => (s >= 0.995 ? "100" : s < 0.005 && s > 0 ? "<1" : Math.round(s * 100)) + "%";
+
+      function render(r) {
+        const out = $("out");
+        out.replaceChildren();
+        if (!r.rows.some((row) => row.calls)) {
+          out.append(el("p", { class: "empty", text: "No calls in the history yet. Once she greets a guest, what each stage costs shows up here." }));
+          return;
+        }
+        const per = r.per_reading;
+        out.append(
+          per == null
+            ? el("p", { class: "headline", text: money(r.total) }, el("small", { text: "so far, no fortunes told yet" }))
+            : el("p", { class: "headline", text: money(per) }, el("small", { text: "a reading" })),
+          el("p", { class: "sub" },
+            el("b", { text: money(r.total) }), ` in all for ${num(r.readings)} ${r.readings === 1 ? "fortune" : "fortunes"}`,
+            r.day ? ` on ${r.day}.` : ` over ${r.days} ${r.days === 1 ? "day" : "days"}.`),
+        );
+
+        const bar = el("div", { class: "bar", role: "img", "aria-label": "Share of cost by stage: " +
+          r.rows.map((row) => `${row.label} ${pct(row.share)}`).join(", ") });
+        for (const row of r.rows) {
+          if (row.share > 0) bar.append(el("span", { style: `flex:${row.share};background:var(--${row.stage})`, title: `${row.label}: ${pct(row.share)}` }));
+        }
+        out.append(bar);
+
+        const head = el("tr", {},
+          el("th", { text: "Stage" }), el("th", { text: "Calls" }),
+          el("th", { class: "wide", text: "Tokens in" }), el("th", { class: "wide", text: "Tokens out or letters" }),
+          el("th", { text: "Cost" }), el("th", { text: "A reading" }), el("th", { text: "Share" }));
+        const body = el("tbody");
+        for (const row of r.rows) {
+          const voiced = row.stage.startsWith("voice_");
+          body.append(el("tr", {},
+            el("td", {}, el("span", { class: "swatch", style: `background:var(--${row.stage})` }), row.label),
+            el("td", {}, num(row.calls), row.failed ? el("span", { class: "fail", text: ` (${row.failed} failed)` }) : null),
+            el("td", { class: "wide muted", text: voiced ? "" : num(row.tokens_in) }),
+            el("td", { class: "wide muted", text: voiced ? `${num(row.chars)} letters` : num(row.tokens_out) }),
+            el("td", { class: "big", text: money(row.cost) }),
+            el("td", { text: money(row.per_reading) }),
+            el("td", { text: pct(row.share) }),
+          ));
+        }
+        const foot = el("tfoot", {}, el("tr", {},
+          el("td", { text: "Total" }), el("td"), el("td", { class: "wide" }), el("td", { class: "wide" }),
+          el("td", { class: "big", text: money(r.total) }), el("td", { text: money(r.per_reading) }), el("td", { text: "100%" })));
+        out.append(el("table", {}, el("thead", {}, head), body, foot));
+
+        const notes = el("div", { class: "notes" },
+          el("p", { text: `Claude: ${r.claude_model} looks and reads, ${r.asked_model} judges whether they have finished asking. Tokens in include the camera frame; tokens out include her thinking.` }),
+          el("p", { text: r.voice_price_per_1k == null
+            ? `Voice: no price known for ${r.voice_model}, so it is counted as free.`
+            : `Voice: priced at ${r.voice_model}, $${r.voice_price_per_1k} per 1000 letters, the model set now. Her stock lines (${num(r.stock_chars)} letters, ${money(r.stock_cost)}) are paid once per voice and model, then reused, so they aren't in the table.` }),
+          el("p", { text: "List prices from October 2026, in US dollars." }),
+        );
+        if (r.unpriced.length) notes.append(el("p", { class: "warn", text: `No price known for ${r.unpriced.join(", ")}: those calls count as $0.` }));
+        out.append(notes);
+      }
+
+      async function load() {
+        const day = $("day").value;
+        const r = await fetch("/api/spend" + (day ? `?day=${day}` : ""));
+        if (r.ok) render(await r.json());
+        else $("out").replaceChildren(el("p", { class: "empty", text: "Couldn't load the costs. Check the booth server is running." }));
+      }
+
+      (async () => {
+        const days = await (await fetch("/api/history")).json();
+        for (const d of days) $("day").append(el("option", { value: d.day, text: d.day }));
+        $("day").addEventListener("change", load);
+        load();
+      })();
+    </script>
+  </body>
+</html>

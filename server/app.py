@@ -8,7 +8,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import config, history, oracle, printer, sfx, variety, voice
+from . import config, history, oracle, printer, sfx, spend, variety, voice
 from .memory import GuestLog
 from .models import Fortune
 from .setting_help import HELP
@@ -244,6 +244,14 @@ async def history_day(day: str):
     if history.path(day) is None:
         raise HTTPException(404)
     return history.read(day)
+
+
+@app.get("/api/spend")
+async def spend_report(day: str = ""):
+    """What each stage of a reading costs, from the history: one day, or every day."""
+    if day and history.path(day) is None:
+        raise HTTPException(404)
+    return spend.report(day)
 
 
 app.mount("/", StaticFiles(directory=config.ROOT / "static", html=True), name="static")

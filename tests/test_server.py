@@ -8,7 +8,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from server import app as app_module
-from server import oracle, printer
+from server import history, oracle, printer
 from server.memory import GuestLog
 from server.models import Fortune
 
@@ -186,6 +186,35 @@ def test_every_call_goes_into_the_history(monkeypatch, tmp_path):
     assert "x" * 200 not in json.dumps(greet)  # never the frame itself
     assert asked["kind"] == "asked" and asked["output"] is None and asked["error"] == "refused (cyber)"
     assert "<heard>will I</heard>" in asked["prompt"]
+
+
+def test_spend_report_prices_each_stage(monkeypatch, tmp_path):
+    monkeypatch.setattr(oracle.config, "HISTORY_DIR", tmp_path / "history")
+    monkeypatch.setattr(oracle.config, "ELEVENLABS_MODEL", "eleven_flash_v2_5")  # $0.04 per 1000 characters
+    greet = {"audience": "adult", "group_size": 1, "costume": "a ghost", "greeting": "x" * 100}
+    fortune = {"audience": "adult", "spoken": "y" * 500}
+    for kind, model, tin, tout, output in [
+        ("greet", "claude-opus-5-5", 1_000_000, 0, greet),  # $4
+        ("greet", "claude-opus-5-5", 0, 0, {"audience": "nobody", "greeting": "z" * 999}),  # not voiced
+        ("asked", "claude-haiku-5-5", 1_000_000, 1_000_000, {"done": True}),  # $0.60
+        ("fortune", "claude-opus-5-5", 0, 1_000_000, fortune),  # $20
+    ]:
+        resp = types.SimpleNamespace(model=model, stop_reason="end_turn",
+                                     usage=types.SimpleNamespace(input_tokens=tin, output_tokens=tout))
+        history.record(kind, model=model, effort="low", system="", content=[], started=1793336254.0,
+                       response=resp, output=output)
+    with TestClient(app_module.app) as c:
+        r = c.get("/api/spend").json()
+        assert c.get("/api/spend?day=..%2F.env").status_code == 404
+    rows = {row["stage"]: row for row in r["rows"]}
+    assert rows["greet"]["calls"] == 2 and rows["greet"]["cost"] == pytest.approx(4)
+    assert rows["asked"]["cost"] == pytest.approx(0.6)
+    assert rows["fortune"]["cost"] == pytest.approx(20)
+    assert rows["voice_greet"]["chars"] == 100 and rows["voice_greet"]["cost"] == pytest.approx(0.004)
+    assert rows["voice_fortune"]["cost"] == pytest.approx(0.02)
+    assert r["readings"] == 1 and r["total"] == pytest.approx(24.624)
+    assert rows["fortune"]["share"] == pytest.approx(20 / 24.624)
+    assert r["stock_chars"] > 0 and r["unpriced"] == []
 
 
 def test_no_fallback_param_for_haiku(monkeypatch):
