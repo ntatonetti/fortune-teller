@@ -60,6 +60,10 @@ let forceGlitch = false;
 let speaking = null; // current voice controller
 let subtitle = { words: [], ctrl: null };
 let debug = false;
+// Debug: ?brief in the URL caps her greeting and fortune at 20 words (?brief=30 for 30),
+// so testing the guest's side isn't spent listening to her. Never saved.
+const briefParam = new URLSearchParams(location.search).get("brief");
+const maxWords = briefParam === null ? 0 : Number(briefParam) || 20;
 
 // ---------------- helpers ----------------
 
@@ -308,7 +312,7 @@ async function runReading({ paid = false } = {}) {
   const shot = watcher.snapshot();
   puppet.setGuestFace(watcher.faceCrop());
   const [greet] = await Promise.all([
-    shot ? api("/api/greet", { image: shot }).catch((e) => (console.warn(e), null)) : null,
+    shot ? api("/api/greet", { image: shot, max_words: maxWords }).catch((e) => (console.warn(e), null)) : null,
     wait(1900),
   ]);
   stillHere();
@@ -380,6 +384,7 @@ async function consultAndSpeak() {
         costume: reading.costume,
         question: reading.question,
         paid_with: reading.paidWith,
+        max_words: maxWords,
       }).catch((e) => (console.warn(e), null))
     : Promise.resolve(null);
   await sayStock(kid ? "consult_child" : "consult_adult");
@@ -524,7 +529,7 @@ function drawDebug() {
     `question: ${reading?.question || "-"}`,
     `walk-away: ${inReading() ? `${((performance.now() - lastFaceAt) / 1000).toFixed(1)}s` : "-"} / ${settings.walkAwayS}s${inReading() && !seenThisSession ? " (face not seen yet: off)" : ""}`,
     `costume: ${reading?.costume || "-"}`,
-    `printer: ${server.printer}`,
+    `printer: ${server.printer}${maxWords ? ` · brief: ${maxWords} words` : ""}`,
     `button: ${settings.button ? "required" : "auto"} · glitch: ${Math.round(settings.glitchRate * 100)}% · guests: ${server.guests ?? "?"}`,
   ].join("\n");
 }

@@ -38,13 +38,14 @@ She needs the internet: Claude for every word she says about a guest, ElevenLabs
 
 **Keeping her fresh:** every stock line has two or three wordings and never repeats back to back. Each fortune gets a lucky number she hasn't used recently and a random sign to read from (a tarot card, tea leaves, a raven, a cracked mirror and so on), with gentler options for kids. She's also told her recent greetings and fortunes, so she avoids reusing their openings, omens and tasks.
 
-**Her signature lines:** `server/phrases.py` holds wording we wrote for her ("Hold still... the gears are turning for you.", "Go now... before the clockwork changes its mind."). Each greeting is offered three greeting lines and uses one if it fits. Each fortune is offered a few lines for two of its three places (opening, middle, close) and works in two, writing the rest itself. Kids only get the kid lines. To change how she talks, edit the lists and restart the server.
+**Her signature lines:** `server/phrases.py` holds wording we wrote for her ("Hold still... the gears are turning for you.", "Go now... before the clockwork changes its mind."). Each greeting is offered three greeting lines and uses one if it fits. Each fortune is offered a few lines for two of its three places (opening, middle, close) and works in two, writing the rest itself. Kids only get the kid lines. Every line has odds in front of it, e.g. `(3, "Mark me well...")`: a 3 is offered three times as often as a 1, and 0 turns a line off. Our classic lines start at 3 and the crazier ones at 1. To change how she talks, edit the lines or their odds and restart the server.
 
 ### Try it without any hardware
 
 - Walk up to the laptop camera. She wakes when your face is close enough, and **[** / **]** adjust how close that is. **D** shows what the camera sees, with face boxes: yellow means seen, green means close enough to wake her. It also shows how far the nearest head is turned; past 0.3 it reads AWAY, and while she's waiting for a question that stops her pause clock.
 - **Space** is the gold coin. **W** wakes her manually. Talk when she asks for a secret or a question; Chrome asks for mic permission once, when you click Awaken.
 - **A** forces adult or child mode, and **G** makes the next adult reading glitch.
+- To test the guest's side without sitting through her full readings, open **http://localhost:8000/?brief**. Her greeting and fortune are then capped at 20 words (`?brief=30` for 30). Her fixed lines and all the timings stay the same. The setting is never saved, so a plain page load is always the full reading.
 - Printed tickets show up in the server terminal until a real printer is connected.
 
 ## Keys and voices

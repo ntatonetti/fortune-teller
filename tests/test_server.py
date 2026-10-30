@@ -274,7 +274,7 @@ def test_question_and_payment_reach_the_prompt(monkeypatch):
 def test_secret_text_is_never_accepted_or_logged(monkeypatch):
     seen = {}
 
-    async def fake_fortune(image, audience, costume, recent, question="", paid_with=""):
+    async def fake_fortune(image, audience, costume, recent, question="", paid_with="", max_words=0):
         seen.update(question=question, paid_with=paid_with)
         return Fortune(**PIRATE)
 
@@ -411,11 +411,11 @@ def test_signature_lines_are_offered_and_kids_only_get_kid_lines(monkeypatch):
         return None
 
     monkeypatch.setattr(oracle, "_ask", fake_ask)
-    adult_lines = [l for lines in phrases.ADULT.values() for l in lines]
-    kid_lines = [l for lines in phrases.KIDS.values() for l in lines]
+    adult_lines = [l for lines in phrases.ADULT.values() for _, l in lines]
+    kid_lines = [l for lines in phrases.KIDS.values() for _, l in lines]
 
     asyncio.run(oracle.greet("x" * 200))
-    assert sum(l in seen[-1] for l in phrases.GREETING) == 3
+    assert sum(l in seen[-1] for _, l in phrases.GREETING) == 3
 
     asyncio.run(oracle.fortune("x" * 200, "adult", "a pirate", []))
     assert sum(l in seen[-1] for l in adult_lines) == 4
@@ -424,3 +424,17 @@ def test_signature_lines_are_offered_and_kids_only_get_kid_lines(monkeypatch):
     asyncio.run(oracle.fortune("x" * 200, "child", "a tiny dragon", []))
     assert sum(l in seen[-1] for l in kid_lines) == 4
     assert not any(l in seen[-1] for l in adult_lines)
+
+
+def test_signature_line_odds():
+    import random
+    from collections import Counter
+
+    from server import phrases
+
+    rng = random.Random(1)
+    lines = [(0, "never"), (1, "rare"), (9, "common"), (5, "fill")]
+    counts = Counter(l for _ in range(2000) for l in phrases._pick(lines, 2, rng))
+    assert counts["never"] == 0
+    assert counts["common"] > 2 * counts["rare"]
+    assert phrases._pick([(0, "off"), (2, "on")], 2, rng) == ["on"]

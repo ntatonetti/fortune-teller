@@ -48,6 +48,7 @@ class Frame(BaseModel):
     costume: str = ""
     question: str = ""
     paid_with: str = ""  # "coin" | "secret" | ""
+    max_words: int = 0  # debug: cap what she says (?brief in the URL); 0 = full length
 
 
 def _b64(image: str) -> str:
@@ -77,7 +78,7 @@ async def get_config():
 
 @app.post("/api/greet")
 async def greet(frame: Frame):
-    g = await oracle.greet(_b64(frame.image))
+    g = await oracle.greet(_b64(frame.image), max_words=frame.max_words)
     if g is None:
         raise HTTPException(503, "Claude unavailable")
     log.info("greet: audience=%s size=%d costume=%r", g.audience, g.group_size, g.costume)
@@ -103,6 +104,7 @@ async def fortune(frame: Frame):
         guests.recent(config.MEMORY_RECALL),
         question=frame.question,
         paid_with=frame.paid_with,
+        max_words=frame.max_words,
     )
     if f is None:
         raise HTTPException(503, "Claude unavailable")
