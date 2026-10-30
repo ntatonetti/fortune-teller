@@ -49,9 +49,9 @@
       th { text-align: right; font-size: 13px; font-weight: 600; color: var(--muted); padding: 0 0 8px 14px; border-bottom: 1px solid var(--rule); }
       th:first-child, td:first-child { text-align: left; padding-left: 0; }
       td { text-align: right; padding: 10px 0 10px 14px; border-bottom: 1px solid var(--rule); white-space: nowrap; }
-      td:first-child { white-space: normal; }
+      td:first-child { white-space: normal; position: relative; padding-left: 22px; }
       td.big { font: 17px var(--her); }
-      .swatch { display: inline-block; width: 12px; height: 12px; border-radius: 2px; margin-right: 8px; vertical-align: -1px; }
+      .swatch { position: absolute; left: 0; top: 14px; width: 12px; height: 12px; border-radius: 2px; }
       .muted { color: var(--muted); }
       .fail { color: var(--oxblood); }
       tfoot td { border-bottom: 0; font-weight: 600; }
@@ -64,6 +64,8 @@
         header, main { padding-left: 16px; padding-right: 16px; }
         .headline { font-size: 40px; }
         .wide { display: none; }
+        table { font-size: 14px; }
+        th, td { padding-left: 8px; }
       }
     </style>
   </head>
