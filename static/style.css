@@ -125,7 +125,8 @@ body.mirror #show {
 #debug {
   position: fixed;
   left: 1vh;
-  bottom: 1vh;
+  top: 1vh;
+  z-index: 50;
   padding: 8px;
   background: rgba(0, 0, 0, 0.85);
   border: 1px solid #444;
