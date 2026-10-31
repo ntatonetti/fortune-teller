@@ -85,6 +85,7 @@ def _audio_url(name: str | None) -> str | None:
 async def get_config():
     return {
         "name": config.ORACLE_NAME,
+        "background": config.BACKGROUND,
         "printer": config.PRINTER,
         "flickers": config.FACE_FLICKERS,
         "flicker_where": config.FLICKER_WHERE,

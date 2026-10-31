@@ -65,6 +65,7 @@ def check(name: str, raw: str) -> None:
 
 
 ORACLE_NAME = _setting("ORACLE_NAME", "Madame Mechanika", "her name", str)
+BACKGROUND = _setting("BACKGROUND", True, "her room around her; false shows only her face and crystal ball, on black", bool)
 
 # Claude
 _section = "Her mind"

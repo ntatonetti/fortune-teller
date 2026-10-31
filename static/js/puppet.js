@@ -13,6 +13,11 @@ import { IDX, OUTLINE, HER, TRIS } from "./mechanika-mesh.js";
 
 const W = 1600;
 const H = 900;
+// Her face and crystal ball in her photograph, with room around them.
+const SPOTS = [
+  { x: FACE.x, y: FACE.y - 10, rx: FACE.rx * 1.4, ry: FACE.ry * 1.35 },
+  { x: BALL.x, y: BALL.y + BALL.r * 0.25, rx: BALL.r * 1.35, ry: BALL.r * 1.6 },
+];
 const SERVO_HZ = 12;
 
 const TONE = "grayscale(1) sepia(0.85) contrast(1.45) brightness(1.08)"; // a camera face as a spirit photograph
@@ -161,6 +166,7 @@ export class Puppet {
     this._blinkTicks = 0;
     this._jitter = { x: 0, y: 0, r: 0 };
     this.mode = "screen";
+    this.background = true; // her room around her, or only her face and ball (BACKGROUND in .env)
     this.headmap = null; // set for head mode
     this.preview = false; // alignment: hold her awake with the mouth cycling
     this.guestFace = null; // the guest's face, toned like a spirit photograph
@@ -414,6 +420,7 @@ export class Puppet {
     const at = (p) => ({ x: ox + p.x * k, y: oy + p.y * k });
     c.drawImage(this._portraitNow(time), ox, oy, pt.width * k, pt.height * k);
     this._dimmed(1 - this._power());
+    if (!this.background) this._onlySpots(ox, oy, k);
     const b = at(BALL);
     this._ballGlow(b.x, b.y, BALL.r * k, time);
     c.save();
@@ -439,6 +446,18 @@ export class Puppet {
         c.restore();
       }
     }
+  }
+
+  // BACKGROUND off: black over all of her photograph but her face and ball.
+  _onlySpots(ox, oy, k) {
+    const m = (this._spotMask ||= Object.assign(document.createElement("canvas"), { width: W, height: H }));
+    const g = m.getContext("2d");
+    g.globalCompositeOperation = "source-over";
+    g.fillStyle = "#000";
+    g.fillRect(0, 0, W, H);
+    g.globalCompositeOperation = "destination-out";
+    spots(g, ox, oy, k);
+    this.ctx.drawImage(m, 0, 0);
   }
 
   // The guest's face flickering up in the crystal ball (centre 0,0, radius r).
@@ -1099,22 +1118,7 @@ export class Puppet {
         c.drawImage(this._portraitNow(time), 0, 0, bg.w, bg.h);
         // Her face and globe are projected onto the foam head and the real globe,
         // so black out the painted ones rather than show them twice.
-        const k = bg.w / this.portrait.base.width;
-        const holes = [
-          { x: FACE.x, y: FACE.y - 10, rx: FACE.rx * 1.4, ry: FACE.ry * 1.35 },
-          { x: BALL.x, y: BALL.y + BALL.r * 0.25, rx: BALL.r * 1.35, ry: BALL.r * 1.6 },
-        ];
-        for (const h of holes) {
-          c.save();
-          c.translate(h.x * k, h.y * k);
-          c.scale(h.rx * k, h.ry * k);
-          const g = c.createRadialGradient(0, 0, 0, 0, 0, 1);
-          g.addColorStop(0.75, "rgba(0,0,0,1)");
-          g.addColorStop(1, "rgba(0,0,0,0)");
-          c.fillStyle = g;
-          c.fillRect(-1, -1, 2, 2);
-          c.restore();
-        }
+        spots(c, 0, 0, bg.w / this.portrait.base.width);
       }, power * hm.bg.level);
     }
 
@@ -1278,5 +1282,21 @@ export class Puppet {
     g.addColorStop(1, "rgba(0,0,0,0.92)");
     c.fillStyle = g;
     c.fillRect(0, 0, W, H);
+  }
+}
+
+// Soft black ovals over her face and ball (SPOTS), her photograph drawn at
+// (ox, oy) scaled by k.
+function spots(c, ox, oy, k) {
+  for (const h of SPOTS) {
+    c.save();
+    c.translate(ox + h.x * k, oy + h.y * k);
+    c.scale(h.rx * k, h.ry * k);
+    const g = c.createRadialGradient(0, 0, 0, 0, 0, 1);
+    g.addColorStop(0.75, "rgba(0,0,0,1)");
+    g.addColorStop(1, "rgba(0,0,0,0)");
+    c.fillStyle = g;
+    c.fillRect(-1, -1, 2, 2);
+    c.restore();
   }
 }

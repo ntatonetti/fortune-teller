@@ -2,7 +2,7 @@
 // canvas and corner-pinned onto the real objects (a foam head, a frosted globe).
 // Her room (the background of her photograph) can go on a third one, behind them,
 // pinned onto the backdrop. Its frame is always there to align; her room only
-// shows in it once switched on (B in alignment mode).
+// shows in it once switched on (BACKGROUND in .env, or B in alignment mode).
 // Alignment mode lets you drag corners with the mouse or nudge with keys.
 
 import { cornerPinMatrix, cssMatrix } from "./homography.js";
@@ -218,9 +218,12 @@ export class HeadMap {
         this.selected = order[(order.indexOf(this.selected) + 1) % order.length];
         this.corner = 0;
       },
-      b: () => this._background(!this.bg.on),
-      "[": () => this._background(true, -0.05),
-      "]": () => this._background(true, 0.05),
+      b: () => {
+        this._background(!this.bg.on);
+        this.onBackground?.(this.bg.on);
+      },
+      "[": () => this._background(this.bg.on, -0.05),
+      "]": () => this._background(this.bg.on, 0.05),
       0: () => (this.corner = 0),
       1: () => (this.corner = 1),
       2: () => (this.corner = 2),

@@ -77,7 +77,7 @@ The voice is pushed through a phonograph filter in the browser (band-limited, sl
 
 ## The booth
 
-- **Projector:** rear-project onto a sheet or frosted shower curtain stretched inside a cardboard cabinet front. Use the projector's "rear" mode, or press **M** to mirror the image. Everything around her is near-black, so only she glows. Keep the area dim.
+- **Projector:** rear-project onto a sheet or frosted shower curtain stretched inside a cardboard cabinet front. Use the projector's "rear" mode, or press **M** to mirror the image. Everything around her is near-black, so only she glows. Keep the area dim. To show only her face and crystal ball, floating in the dark, set `BACKGROUND` to false on the setup screen.
 - **Camera:** a USB webcam at about eye height near the "glass," aimed at where guests stand. Put a small warm light on the guest's face. That matters more than the webcam model in a dark backyard. If her eyes follow people the wrong way, press **I**.
 - **Speaker:** wired (3.5 mm). Bluetooth delay makes the jaw flap ahead of the voice.
 - **Button:** a big arcade button on a "zero delay" USB encoder shows up as a gamepad, and any button on any gamepad counts as a coin. No driver needed. She sees coins held up to the camera, so the button is only a backup. Put a cup or treasure chest by the glass for the coins. Press **B** if you'd rather she start automatically after the invite.
@@ -111,7 +111,7 @@ This is the Haunted Mansion "Madame Leota" trick. Instead of a picture on a shee
 2. Drag the four corner dots to warp the face until it sits on the foam. This corrects the projector's angle.
 3. Press **P** for crosshairs, then line up the features: **J/K** eye spacing, **U/N** eye height, **T/Y** eye size, **I/M** mouth height. Put the irises in the sculpted eyes and the lips on the lips.
 4. Press **Tab** to switch to the BALL surface, and fit its circle to the globe.
-5. **Tab** on to the BACKGROUND surface, the big frame behind the other two. It shows her room (the rest of her photograph: table, cards, candles) on the backdrop behind the head. Move, size and warp it like the others. **[ / ]** make it darker or brighter. Press **B** to turn it off, so only her face and the globe are lit.
+5. **Tab** on to the BACKGROUND surface, the big frame behind the other two. It shows her room (the rest of her photograph: table, cards, candles) on the backdrop behind the head. Move, size and warp it like the others. **[ / ]** make it darker or brighter. Press **B** to turn it off, so only her face and the globe are lit (saved as `BACKGROUND`, the same setting as on the setup screen).
 6. Press **C** or **Esc** when done. The alignment is saved in the browser automatically.
 
 In head mode the marquee and subtitles are off, because the projector should only light her. **S** turns subtitles back on if you put a white card under her for them. Asleep, her face dims like a turned-down gas lamp, and it sputters up to full brightness when she wakes.

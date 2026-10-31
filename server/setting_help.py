@@ -7,6 +7,10 @@ HELP: dict[str, tuple[str, str]] = {
         "The name she gives herself. It heads the screen, the top of every printed ticket, and Claude is told it's her name, so she may say it.",
         "Madame Mechanika, or Zoltara for a different booth",
     ),
+    "BACKGROUND": (
+        "Whether her room shows around her. true: the whole photograph, curtains, booth and all. false: only her face and her crystal ball, soft-edged on black, as if floating in the dark. In head mode it's the room projected behind the foam head (B while aligning flips it too).",
+        "true on a screen or wall; false when the booth around the projection is the scenery",
+    ),
     # Her mind
     "CLAUDE_MODEL": (
         "The Claude model that looks through the camera and writes everything she says about a guest: the greeting and the fortune. Bigger models notice more and write better; smaller ones answer faster.",

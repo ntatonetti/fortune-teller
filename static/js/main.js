@@ -35,6 +35,15 @@ const save = () => localStorage.setItem("oracle-settings", JSON.stringify(settin
 const puppet = new Puppet($("stage"));
 const headmap = new HeadMap($("headLayers"));
 puppet.headmap = headmap;
+// B while aligning: her room behind the head on or off, saved as BACKGROUND.
+headmap.onBackground = async (on) => {
+  try {
+    server = await api("/api/settings", { values: { BACKGROUND: String(on) } });
+    applyServer();
+  } catch {
+    toast("Couldn't save the background");
+  }
+};
 const watcher = new Watcher($("camera"));
 const ears = new Ears();
 let sound = null;
@@ -928,6 +937,8 @@ function applyServer() {
   puppet.flickers = server.flickers ?? 3;
   puppet.flickerWhere = server.flicker_where ?? "ball";
   puppet.guestAlpha = server.flicker_opacity ?? 1;
+  puppet.background = headmap.bg.on = server.background ?? true;
+  headmap.apply();
   if (server.timings) puppet.timing = T = { ...puppet.timing, ...server.timings }; // her defaults fill any gaps
   // Her tarot deck, each picture loaded once.
   if (server.deck && !deck.length) deck = server.deck.adult.map(({ name, img }) => ({ name, img: Object.assign(new Image(), { src: img }) }));
