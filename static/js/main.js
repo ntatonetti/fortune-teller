@@ -376,7 +376,7 @@ async function drawCards() {
   for (const [i, place] of places.entries()) {
     puppet.deck = cards.filter((c) => !reading.cards.includes(c));
     puppet.shuffling = true;
-    setPrompt(i ? "✦ “stop” for another card · “enough” if you’ve seen enough ✦" : "✦ say “stop” when a card calls to you ✦");
+    setPrompt(i ? "✦ “stop” for another card · “enough” to end ✦" : "✦ say “stop” when a card calls to you ✦");
     sound.cue();
     const how = await pickCard(i > 0);
     stillHere();
