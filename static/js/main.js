@@ -482,7 +482,7 @@ async function seatThem(kid) {
     const shot = T.coin_look_every > 0 && watcher.snapshot(640);
     if (shot && (await api("/api/seated", { image: shot }).then((r) => r.seated, () => false))) reading.seated = true;
     if (reading.seated) break;
-    await wait(Math.max(200, ms("coin_look_every") - (performance.now() - t0)));
+    await wait(Math.min(until - performance.now(), Math.max(200, ms("coin_look_every") - (performance.now() - t0))));
     stillHere();
   }
   if (reading.seated) speaking?.stop(); // sat down mid-sentence: no need to finish it
