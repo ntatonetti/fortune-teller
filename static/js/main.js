@@ -471,28 +471,26 @@ async function shutDown(walked) {
 
 // Every reading is a sit-down one, but it must never hold up the line. Seated
 // when she woke, or any time since: on she goes. Otherwise she asks once,
-// watching while she talks, gives them SIT_WAIT more, then a "fine, stand
-// there" and on.
+// watching while she talks, and goes on when she's done, sat or not.
 async function seatThem(kid) {
-  if (reading.seated || T.sit_wait <= 0) return;
+  if (reading.seated) return;
   state = "sit";
   setPrompt("✦ take a seat ✦");
   const f = watcher.nearest;
   reading.standing = f && { y: f.y, h: f.h || f.w }; // where their face is as she asks
-  let until = Infinity; // set once she has finished asking
-  const asked = sayStock(kid ? "sit_child" : "sit_adult").then(() => (until = performance.now() + ms("sit_wait")));
-  while (!reading.seated && performance.now() < until) {
+  let asking = true;
+  const asked = sayStock(kid ? "sit_child" : "sit_adult").then(() => (asking = false));
+  while (!reading.seated && asking) {
     const t0 = performance.now();
     const shot = T.coin_look_every > 0 && watcher.snapshot(640);
     if (shot && (await api("/api/seated", { image: shot }).then((r) => r.seated, () => false))) reading.seated = true;
     if (reading.seated) break;
-    await wait(Math.min(until - performance.now(), Math.max(200, ms("coin_look_every") - (performance.now() - t0))));
+    await wait(Math.max(200, ms("coin_look_every") - (performance.now() - t0)));
     stillHere();
   }
   if (reading.seated) speaking?.stop(); // sat down mid-sentence: no need to finish it
   await asked;
   setPrompt("");
-  if (!reading.seated) await sayStock("sit_refused");
   stillHere();
 }
 
@@ -869,7 +867,10 @@ function frame(now) {
       if (state !== "consult" && state !== "draw" && now > dazedUntil) lookAt(watcher.nearest, now);
     }
     const away = now - lastFaceAt;
-    if (seenThisSession && !walkedAway && settings.walkAwayS > 0 && away > settings.walkAwayS * 1000) {
+    // Once she is telling their fortune she finishes it: a guest looking down
+    // at the cards, or leaning out of the camera, hasn't left.
+    const telling = state === "speak" || state === "dispense";
+    if (seenThisSession && !walkedAway && !telling && settings.walkAwayS > 0 && away > settings.walkAwayS * 1000) {
       walkedAway = true;
       // Cut off whatever she is waiting on so the reading notices right away.
       speaking?.stop();

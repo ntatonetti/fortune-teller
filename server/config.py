@@ -166,10 +166,9 @@ _TIMINGS = {
     "GLANCE_MAX_S": (14, "longest gap between glances away", (1, 90, 1)),
     "GLANCE_S": (0.9, "how long a glance away holds (0 = she never glances away)", (0, 3, 0.1)),
     # paying
-    "SIT_WAIT_S": (4, "standing guests: after she asks them to sit, how long she waits for it (looking every COIN_LOOK_EVERY_S) before \"fine, don't sit\" and on", (0, 30, 1)),
     "PAY_TIMEOUT_S": (40, "no secret (or spooky sound from a kid) by then: she goes back to sleep", (5, 120, 5)),
     "SECRET_LISTEN_S": (12, "each stretch of listening for a whispered secret, or a kid's spooky sound", (3, 30, 1)),
-    "COIN_LOOK_EVERY_S": (1.5, "waiting for them to sit, how often she looks (the name is left over from coins; it's only the sit check now. 0 = never: she waits all of SIT_WAIT_S unless she sees their face drop)", (0, 5, 0.25)),
+    "COIN_LOOK_EVERY_S": (1.5, "waiting for them to sit, how often she looks (the name is left over from coins; it's only the sit check now. 0 = never: only their face dropping counts)", (0, 5, 0.25)),
     "COIN_PAUSE_S": (0.8, "after the button is pressed, before she asks their question", (0, 3, 0.1)),
     # their question
     "QUESTION_MAX_S": (30, "longest she listens to a question", (5, 60, 1)),

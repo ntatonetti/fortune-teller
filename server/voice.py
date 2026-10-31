@@ -36,15 +36,6 @@ STOCK_LINES: dict[str, list[str]] = {
         "Sit! The chair won't bite.",
         "Sit. You're taller than the fates like.",
     ],
-    # They didn't sit: fine, on with it (kids hear these too).
-    "sit_refused": [
-        "Fine... don't sit down.",
-        "Stand, then. Like a lamppost.",
-        "No? Suit yourself.",
-        "Fine! The chair is offended.",
-        "A stander. Bold.",
-        "Don't sit, then. Onward.",
-    ],
     # Grown-ups pay with a whispered secret, kids with a spooky sound.
     "invite_adult": [
         "The fates demand payment... and they do not take gold. Lean close to the glass, darling, and whisper me a secret.",

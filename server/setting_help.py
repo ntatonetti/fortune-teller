@@ -208,12 +208,8 @@ HELP: dict[str, tuple[str, str]] = {
         "12",
     ),
     "COIN_LOOK_EVERY_S": (
-        "While she waits for them to take a seat, how often she shows the camera to COIN_MODEL to see whether they're sitting. Lower spots it sooner but makes more Claude calls. 0 turns it off: then only their face dropping counts. (The name is left over from when guests paid with a coin; it no longer watches for coins, only for them sitting.)",
+        "While she asks them to take a seat, how often she shows the camera to COIN_MODEL to see whether they're sitting. Lower spots it sooner but makes more Claude calls. 0 turns it off: then only their face dropping counts. (The name is left over from when guests paid with a coin; it no longer watches for coins, only for them sitting.)",
         "1.5: each look takes Claude about 2 s, so she notices within 2 to 4 s",
-    ),
-    "SIT_WAIT_S": (
-        "Every reading, child or grown-up, is a sit-down one. If they're seated when she wakes, she goes straight on. Otherwise, after the greeting, she asks them once to take a seat, COIN_MODEL looking at the camera every COIN_LOOK_EVERY_S while she asks (and their face dropping well below where it was counts too), cutting herself off if they sit, and waits up to this long after. If they still haven't sat, she says \"Fine... don't sit down\" (or similar) and asks for payment, so a guest who won't sit doesn't hold up the line.",
-        "4; 0 if there is no chair",
     ),
     "COIN_PAUSE_S": (
         "After the button (or Space) is pressed instead, a beat before she asks for their question.",
