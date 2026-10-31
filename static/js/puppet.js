@@ -161,7 +161,7 @@ export class Puppet {
     this._lastServo = 0;
     this._last = performance.now();
     // Her timings in seconds, replaced by the server's (.env) once they arrive.
-    this.timing = { dim: 0.9, blink_min: 2.5, blink_max: 7.5, blink: 0.17, glimpse_min: 0.33, glimpse_max: 0.58, glimpse_gap_min: 0.42, glimpse_gap_max: 0.83, look_side: 0.35, mouth_open: 2, glance_min: 5, glance_max: 14, glance: 0.9 };
+    this.timing = { dim: 0.9, blink_min: 2.5, blink_max: 7.5, blink: 0.17, glimpse_min: 0.33, glimpse_max: 0.58, glimpse_gap_min: 0.42, glimpse_gap_max: 0.83, look_side: 0.35, mouth_open: 3, glance_min: 5, glance_max: 14, glance: 0.9 };
     this._blinkAt = performance.now() + 3000;
     this._blinkTicks = 0;
     this._jitter = { x: 0, y: 0, r: 0 };
@@ -328,7 +328,7 @@ export class Puppet {
     // The photograph's mouth: shut, then three openings, set on the servo clock,
     // no wider than MOUTH_OPEN.
     const v = this.jawLevel;
-    this._mouth = Math.min(v < 0.2 ? 0 : v < 0.45 ? 1 : v < 0.7 ? 2 : 3, this.timing.mouth_open ?? 2);
+    this._mouth = Math.min(v < 0.2 ? 0 : v < 0.45 ? 1 : v < 0.7 ? 2 : 3, this.timing.mouth_open ?? 3);
     if (this.shake > 0) {
       this.shake--;
       this._jitter = { x: (Math.random() - 0.5) * 14, y: (Math.random() - 0.5) * 8 };
@@ -391,7 +391,7 @@ export class Puppet {
   // Her photograph as it is this tick. Asleep she is the same, only dimmed.
   _portraitNow(time) {
     const p = this.pose;
-    if (this.mode === "head" && this.preview) return this.portrait.compose(Math.floor(time) % 2 ? this.timing.mouth_open ?? 2 : 0);
+    if (this.mode === "head" && this.preview) return this.portrait.compose(Math.floor(time) % 2 ? this.timing.mouth_open ?? 3 : 0);
     return this.portrait.compose(this._mouth, this._eyesNow(), p.brow > 0.5);
   }
 

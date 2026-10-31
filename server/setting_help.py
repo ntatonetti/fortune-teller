@@ -183,8 +183,8 @@ HELP: dict[str, tuple[str, str]] = {
         "0.35",
     ),
     "MOUTH_OPEN": (
-        "Her widest mouth while talking. 1: lips parted. 2: dropped to show her teeth. 3: the full marionette drop, which can run off the bottom of the foam head.",
-        "2 for the foam head; 3 on a flat screen",
+        "Her widest mouth while talking. 1: lips parted. 2: half dropped. 3: dropped to show her teeth, still on the foam head.",
+        "3",
     ),
     "GLANCE_MIN_S": (
         "While awake she now and then glances away (left, right, up or down), never sooner than this after the last glance.",

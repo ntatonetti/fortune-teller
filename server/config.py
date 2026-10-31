@@ -160,7 +160,7 @@ _TIMINGS = {
     "WAKE_DAZED_S": (1.6, "how long she looks around, dazed, after a startled waking", (0, 5, 0.1)),
     # her looks
     "LOOK_SIDE": (0.35, "how far off-centre her gaze must be (0-1) before her eyes turn to look that way", (0.05, 1, 0.05)),
-    "MOUTH_OPEN": (2, "her widest mouth: 1 parted, 2 dropped to her teeth, 3 the full drop (runs off the foam head)", (1, 3, 1)),
+    "MOUTH_OPEN": (3, "her widest mouth: 1 parted, 2 half dropped, 3 dropped to her teeth", (1, 3, 1)),
     "GLANCE_MIN_S": (5, "awake, shortest gap between her glances away (left, right, up or down)", (1, 60, 1)),
     "GLANCE_MAX_S": (14, "longest gap between glances away", (1, 90, 1)),
     "GLANCE_S": (0.9, "how long a glance away holds (0 = she never glances away)", (0, 3, 0.1)),
