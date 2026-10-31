@@ -475,6 +475,8 @@ async function seatThem(kid) {
   if (reading.seated || T.sit_wait <= 0) return;
   state = "sit";
   setPrompt("✦ take a seat ✦");
+  const f = watcher.nearest;
+  reading.standing = f && { y: f.y, h: f.h || f.w }; // where their face is as she asks
   let until = Infinity; // set once she has finished asking
   const asked = sayStock(kid ? "sit_child" : "sit_adult").then(() => (until = performance.now() + ms("sit_wait")));
   while (!reading.seated && performance.now() < until) {
@@ -492,10 +494,12 @@ async function seatThem(kid) {
   stillHere();
 }
 
-// Their face well below where it was when she woke: they've sat down.
+// While she asks them to sit, their face well below where it was when she
+// started asking: they've sat down. (Measured from waking, a guest stepping
+// closer looked seated.)
 function sitCheck(f) {
   const s = reading?.standing;
-  if (s && !reading.seated && f.y - s.y > s.h * 0.6) reading.seated = true;
+  if (state === "sit" && s && !reading.seated && f.y - s.y > s.h * 0.6) reading.seated = true;
 }
 
 // Kids pay and ask their question. Each adult reading is one of the styles
@@ -530,13 +534,11 @@ async function runReading({ paid = false } = {}) {
   sound.ball(0.45);
 
   const shot = watcher.snapshot();
-  const face = watcher.nearest;
-  const standing = face && { y: face.y, h: face.h || face.w }; // where their face was when she woke
   puppet.setGuestFace(watcher.faceCrop());
   const [greet] = await Promise.all([
     shot ? api("/api/greet", { image: shot, max_words: maxWords }).catch((e) => (console.warn(e), null)) : null,
     wait(ms("wake_pause")),
-    Math.random() < T.wake_startle ? wakeStartled() : null,
+    Math.random() < T.wake_startle ? wakeStartled() : sayStock("wake"), // fills the wait for the greeting
   ]);
   stillHere();
 
@@ -551,7 +553,7 @@ async function runReading({ paid = false } = {}) {
   const kid = audience === "child" || audience === "mixed";
   const showFace = !kid || !!server.kid_flicker; // kids see their face in hers only with KID_FLICKER
   if (!showFace) puppet.guestFace = null;
-  reading = { audience, kid, style: kid ? "" : adultStyle(), costume: greet?.costume || "", seated: !!greet?.seated, standing, fortune: null, paidWith: paid ? "button" : "", question: "", talk: [], cards: [] };
+  reading = { audience, kid, style: kid ? "" : adultStyle(), costume: greet?.costume || "", seated: !!greet?.seated, standing: null, fortune: null, paidWith: paid ? "button" : "", question: "", talk: [], cards: [] };
   puppet.set({ brow: kid ? 1 : 0.4 });
   showSeeker(kid);
 

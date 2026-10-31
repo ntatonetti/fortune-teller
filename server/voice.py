@@ -211,6 +211,15 @@ STOCK_LINES: dict[str, list[str]] = {
         "No, I won't dance with the coat rack... not again...",
         "Forty-two teaspoons... and not one cup of tea...",
     ],
+    # Said the moment she wakes, while Claude writes the greeting. Short.
+    "wake": [
+        "Mmm... who disturbs me?",
+        "Ah... a visitor.",
+        "Who goes there?",
+        "Hmm? Someone approaches...",
+        "Five more minutes... oh! A guest!",
+        "Zzz-what? I'm awake!",
+    ],
     "wake_startled": [
         "Hnh?! Wha... who's there? I wasn't asleep... I was listening to the gears.",
         "Mm?! The... the moths... oh. Oh. A visitor.",
