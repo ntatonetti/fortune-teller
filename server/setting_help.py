@@ -212,8 +212,8 @@ HELP: dict[str, tuple[str, str]] = {
         "1.5: each look takes Claude about 2 s, so she notices within 2 to 4 s",
     ),
     "SIT_WAIT_S": (
-        "Every reading, child or grown-up, is a sit-down one. If they're seated when she wakes, or sit down any time after, she goes straight on. Otherwise, after the greeting, she asks them to take a seat (once more halfway through) and waits up to this long, COIN_MODEL looking at the camera every COIN_LOOK_EVERY_S, before asking for payment anyway, so a guest who won't sit doesn't hold up the line.",
-        "20; 0 if there is no chair",
+        "Every reading, child or grown-up, is a sit-down one. If they're seated when she wakes, or sit down any time after, she goes straight on. Otherwise, after the greeting, she asks them once to take a seat, COIN_MODEL looking at the camera every COIN_LOOK_EVERY_S while she asks, and waits up to this long after. If they still haven't sat, she says \"Fine... don't sit down\" (or similar) and asks for payment, so a guest who won't sit doesn't hold up the line. When COIN_MODEL can't tell, it counts them as seated.",
+        "6; 0 if there is no chair",
     ),
     "COIN_PAUSE_S": (
         "After the button (or Space) is pressed instead, a beat before she asks for their question.",

@@ -54,7 +54,7 @@ _SCHEMA_COMMON = {
     },
 }
 
-SEATED_ABOUT = "True if the guest nearest the glass is sitting down (on the chair or stool in front of the booth, or crouched or kneeling at it): eyes level with the booth, a chair back or seat behind them, shoulders low in the frame. False if they are standing or you can't tell."
+SEATED_ABOUT = "True if the guest nearest the glass is sitting down (on the chair or stool in front of the booth, or crouched or kneeling at it): eyes level with the booth, a chair back or seat behind them, shoulders low in the frame. False only if they are clearly standing; if you can't tell, say true."
 
 GREET_SCHEMA = {
     "type": "object",

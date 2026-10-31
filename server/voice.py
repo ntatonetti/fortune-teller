@@ -35,6 +35,15 @@ STOCK_LINES: dict[str, list[str]] = {
         "Do sit. The chair is haunted, but only a little... and it's very polite.",
         "Sit down, before the fates notice you're taller than they are. They hate that.",
     ],
+    # They didn't sit: fine, on with it (kids hear these too).
+    "sit_refused": [
+        "Fine... don't sit down. Stand there like a lamppost.",
+        "Very well, stay standing. The spirits will crane their necks.",
+        "No? Suit yourself. Standing fortunes it is.",
+        "Fine! The chair is offended, but I am not.",
+        "Ah, a stander. Bold. Let us carry on.",
+        "Don't sit, then. I'll tell the chair it wasn't personal.",
+    ],
     # Grown-ups pay with a whispered secret, kids with a spooky sound.
     "invite_adult": [
         "The fates demand payment... and they do not take gold. Lean close to the glass, darling, and whisper me a secret.",

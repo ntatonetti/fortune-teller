@@ -467,30 +467,29 @@ async function shutDown(walked) {
   await sleepAgain();
 }
 
-// Every reading is a sit-down one. Seated when she woke, or any time since: on
-// she goes. Otherwise she asks them to sit (once more halfway) and watches for
-// up to SIT_WAIT, then carries on regardless so the line keeps moving.
+// Every reading is a sit-down one, but it must never hold up the line. Seated
+// when she woke, or any time since: on she goes. Otherwise she asks once,
+// watching while she talks, gives them SIT_WAIT more, then a "fine, stand
+// there" and on.
 async function seatThem(kid) {
   if (reading.seated || T.sit_wait <= 0) return;
   state = "sit";
   setPrompt("✦ take a seat ✦");
-  const line = kid ? "sit_child" : "sit_adult";
-  await sayStock(line);
-  stillHere();
-  const until = performance.now() + ms("sit_wait");
-  let nudged = false;
+  let until = Infinity; // set once she has finished asking
+  const asked = sayStock(kid ? "sit_child" : "sit_adult").then(() => (until = performance.now() + ms("sit_wait")));
   while (!reading.seated && performance.now() < until) {
     const t0 = performance.now();
-    if (!nudged && t0 > until - ms("sit_wait") / 2) {
-      nudged = true;
-      await sayStock(line);
-    }
     const shot = T.coin_look_every > 0 && watcher.snapshot(640);
     if (shot && (await api("/api/seated", { image: shot }).then((r) => r.seated, () => false))) reading.seated = true;
+    if (reading.seated) break;
     await wait(Math.max(200, ms("coin_look_every") - (performance.now() - t0)));
     stillHere();
   }
+  if (reading.seated) speaking?.stop(); // sat down mid-sentence: no need to finish it
+  await asked;
   setPrompt("");
+  if (!reading.seated) await sayStock("sit_refused");
+  stillHere();
 }
 
 // Their face well below where it was when she woke: they've sat down.
