@@ -88,6 +88,7 @@ COIN_MODEL = _setting("COIN_MODEL", "claude-haiku-5-5", "watches for the coin th
 
 _section = "The conversation"
 AUDIENCE = _setting("AUDIENCE", "auto", "who she reads for: auto (she judges each guest from the camera), child or adult (everyone, no guessing)", str, ["auto", "child", "adult"])
+STYLE = _setting("STYLE", "auto", "adults, for testing: auto (each reading tarot or conversation at random, from those on), or every reading tarot, or every reading conversation", str, ["auto", "tarot", "conversation"])
 FOLLOW_UP = _setting("FOLLOW_UP", True, "adults: after their question, she asks them one back", bool)
 TAROT = _setting("TAROT", True, "adults: they stop CARDS tarot cards in her ball, one after another, then she reads them one by one", bool)
 CARDS = _setting("CARDS", 3, "adults: how many tarot cards they draw (3: past, present, future)", int, span=[1, 5, 1])
@@ -164,6 +165,7 @@ _TIMINGS = {
     "GLANCE_MAX_S": (14, "longest gap between glances away", (1, 90, 1)),
     "GLANCE_S": (0.9, "how long a glance away holds (0 = she never glances away)", (0, 3, 0.1)),
     # paying
+    "SIT_S": (3, "tarot readings: after she asks them to sit, time to settle in the chair before she asks for the coin", (0, 10, 0.5)),
     "PAY_TIMEOUT_S": (40, "no coin or secret by then: she goes back to sleep", (5, 120, 5)),
     "SECRET_LISTEN_S": (12, "each stretch of listening for a whispered secret", (3, 30, 1)),
     "COIN_LOOK_EVERY_S": (1.5, "waiting for payment, how often she looks for a coin shown or dropped in the cup (0 = never: the button pays)", (0, 5, 0.25)),

@@ -92,6 +92,7 @@ async def get_config():
         "flicker_opacity": config.FLICKER_OPACITY,
         "kid_flicker": config.KID_FLICKER,
         "timings": config.TIMINGS,
+        "style": config.STYLE,
         "follow_up": config.FOLLOW_UP,
         "tarot": config.TAROT,
         "audience": config.AUDIENCE,

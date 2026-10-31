@@ -1,5 +1,5 @@
 // The show: a state machine that runs one reading at a time.
-//   sleep -> wake (looks at you) -> greet -> invite (gold coin or a whispered secret)
+//   sleep -> wake (looks at you) -> greet -> (tarot: sit) -> invite (gold coin or a whispered secret)
 //   -> ask (listens for their question) -> probe (asks one back: FOLLOW_UP)
 //   -> draw (three tarot cards, one after another: TAROT)
 //   -> consult -> speak (card by card) -> dispense -> farewell -> sleep
@@ -465,9 +465,11 @@ async function shutDown(walked) {
 }
 
 // Kids pay and ask their question. Each adult reading is one of the styles
-// that are on, at random: "tarot" (they draw cards) or "conversation" (she
-// asks them a question back). "" is a plain question-and-fortune.
+// that are on, at random (or the one STYLE forces): "tarot" (they sit, then
+// draw cards) or "conversation" (she asks them a question back). "" is a
+// plain question-and-fortune.
 function adultStyle() {
+  if (server.style === "tarot" || server.style === "conversation") return server.style; // STYLE, for testing
   const styles = [server.tarot && "tarot", server.follow_up && "conversation"].filter(Boolean);
   return styles[Math.floor(Math.random() * styles.length)] || "";
 }
@@ -520,6 +522,14 @@ async function runReading({ paid = false } = {}) {
   state = "greet";
   if (greet?.greeting) await say(greet.audio, greet.greeting);
   stillHere();
+  if (reading.style === "tarot") {
+    // A tarot reading is a sit-down affair.
+    setPrompt("✦ take a seat ✦");
+    await sayStock("sit_adult");
+    await wait(ms("sit"));
+    setPrompt("");
+    stillHere();
+  }
 
   let seen = false; // they held up a coin and she saw it
   if (!paid) {

@@ -49,6 +49,10 @@ HELP: dict[str, tuple[str, str]] = {
         "claude-haiku-5-5 for a quick reply; claude-opus-5-5 for sharper questions, a second or two slower",
     ),
     # The conversation
+    "STYLE": (
+        "For testing: which kind of reading grown-ups get. auto: each one is tarot or conversation at random, from whichever of TAROT and FOLLOW_UP are on. tarot: every adult sits, pays, asks, stops CARDS cards and hears them read. conversation: every adult asks, is asked a question back, and answers. Kids are never affected: they pay and ask.",
+        "auto at the party; tarot or conversation while trying one out",
+    ),
     "FOLLOW_UP": (
         "A conversation reading, for adults: after their question she asks one back, to draw them out (\"Is this a matter of the heart... or of coin?\"). She listens to the answer as patiently as to the question, and the fortune uses it. With TAROT also on, each adult reading is one or the other, at random. Kids just pay and ask their question. Needs listening on (L).",
         "true; false for a shorter reading with no back-and-forth",
@@ -206,6 +210,10 @@ HELP: dict[str, tuple[str, str]] = {
     "COIN_LOOK_EVERY_S": (
         "While she waits for payment, how often she shows the camera to COIN_MODEL to see whether they're showing a coin or reaching forward to drop one in. Lower spots the coin sooner but makes more Claude calls. 0 turns it off: then only the button (or Space) pays.",
         "1.5: each look takes Claude about 2 s, so she notices a coin within 2 to 4 s",
+    ),
+    "SIT_S": (
+        "Tarot readings only: after the greeting she asks them to take a seat, then waits this long for them to settle in before she asks for the coin.",
+        "3; 0 if there is no chair",
     ),
     "COIN_CUP_S": (
         "Once she has seen their coin (held up, or on its way into the cup), how long she waits for it to land before the clink and their question.",
