@@ -1,5 +1,5 @@
 // The show: a state machine that runs one reading at a time.
-//   sleep -> wake (looks at you) -> greet -> (tarot: sit) -> invite (gold coin or a whispered secret)
+//   sleep -> wake (looks at you) -> greet -> sit (unless seated) -> invite (gold coin or a whispered secret)
 //   -> ask (listens for their question) -> probe (asks one back: FOLLOW_UP)
 //   -> draw (three tarot cards, one after another: TAROT)
 //   -> consult -> speak (card by card) -> dispense -> farewell -> sleep
@@ -464,10 +464,42 @@ async function shutDown(walked) {
   await sleepAgain();
 }
 
+// Every reading is a sit-down one. Seated when she woke, or any time since: on
+// she goes. Otherwise she asks them to sit (once more halfway) and watches for
+// up to SIT_WAIT, then carries on regardless so the line keeps moving.
+async function seatThem(kid) {
+  if (reading.seated || T.sit_wait <= 0) return;
+  state = "sit";
+  setPrompt("✦ take a seat ✦");
+  const line = kid ? "sit_child" : "sit_adult";
+  await sayStock(line);
+  stillHere();
+  const until = performance.now() + ms("sit_wait");
+  let nudged = false;
+  while (!reading.seated && performance.now() < until) {
+    const t0 = performance.now();
+    if (!nudged && t0 > until - ms("sit_wait") / 2) {
+      nudged = true;
+      await sayStock(line);
+    }
+    const shot = T.coin_look_every > 0 && watcher.snapshot(640);
+    if (shot && (await api("/api/seated", { image: shot }).then((r) => r.seated, () => false))) reading.seated = true;
+    await wait(Math.max(200, ms("coin_look_every") - (performance.now() - t0)));
+    stillHere();
+  }
+  setPrompt("");
+}
+
+// Their face well below where it was when she woke: they've sat down.
+function sitCheck(f) {
+  const s = reading?.standing;
+  if (s && !reading.seated && f.y - s.y > s.h * 0.6) reading.seated = true;
+}
+
 // Kids pay and ask their question. Each adult reading is one of the styles
-// that are on, at random (or the one STYLE forces): "tarot" (they sit, then
-// draw cards) or "conversation" (she asks them a question back). "" is a
-// plain question-and-fortune.
+// that are on, at random (or the one STYLE forces): "tarot" (they draw cards)
+// or "conversation" (she asks them a question back). "" is a plain
+// question-and-fortune.
 function adultStyle() {
   if (server.style === "tarot" || server.style === "conversation") return server.style; // STYLE, for testing
   const styles = [server.tarot && "tarot", server.follow_up && "conversation"].filter(Boolean);
@@ -496,6 +528,8 @@ async function runReading({ paid = false } = {}) {
   sound.ball(0.45);
 
   const shot = watcher.snapshot();
+  const face = watcher.nearest;
+  const standing = face && { y: face.y, h: face.h || face.w }; // where their face was when she woke
   puppet.setGuestFace(watcher.faceCrop());
   const [greet] = await Promise.all([
     shot ? api("/api/greet", { image: shot, max_words: maxWords }).catch((e) => (console.warn(e), null)) : null,
@@ -515,21 +549,14 @@ async function runReading({ paid = false } = {}) {
   const kid = audience === "child" || audience === "mixed";
   const showFace = !kid || !!server.kid_flicker; // kids see their face in hers only with KID_FLICKER
   if (!showFace) puppet.guestFace = null;
-  reading = { audience, kid, style: kid ? "" : adultStyle(), costume: greet?.costume || "", fortune: null, paidWith: paid ? "coin" : "", question: "", talk: [], cards: [] };
+  reading = { audience, kid, style: kid ? "" : adultStyle(), costume: greet?.costume || "", seated: !!greet?.seated, standing, fortune: null, paidWith: paid ? "coin" : "", question: "", talk: [], cards: [] };
   puppet.set({ brow: kid ? 1 : 0.4 });
   showSeeker(kid);
 
   state = "greet";
   if (greet?.greeting) await say(greet.audio, greet.greeting);
   stillHere();
-  if (reading.style === "tarot") {
-    // A tarot reading is a sit-down affair.
-    setPrompt("✦ take a seat ✦");
-    await sayStock("sit_adult");
-    await wait(ms("sit"));
-    setPrompt("");
-    stillHere();
-  }
+  await seatThem(kid);
 
   let seen = false; // they held up a coin and she saw it
   if (!paid) {
@@ -813,6 +840,7 @@ function drawDebug() {
     `face: ${n ? `w=${n.w.toFixed(3)} (near ≥ ${settings.near}) · turn=${(n.turn ?? 0).toFixed(2)}${watcher.lookingAway ? " AWAY" : ""}` : "none"}`,
     `audience: ${reading?.audience || "-"} ${server.audience && server.audience !== "auto" ? `(AUDIENCE=${server.audience})` : ""}`,
     `ears: ${!ears.supported ? "unsupported in this browser" : ears.failed ? `failed (${ears.failed})` : settings.listen ? (ears.listening ? "LISTENING" : "on") : "off"} · paid: ${reading?.paidWith || "-"}`,
+    `seated: ${reading ? (reading.seated ? "yes" : "no") : "-"}`,
     `question: ${reading?.question || "-"}`,
     `talk: ${reading?.talk.length ?? "-"} · cards: ${reading?.cards.map((c) => c.name).join(", ") || "-"}`,
     `walk-away: ${inReading() ? `${((performance.now() - lastFaceAt) / 1000).toFixed(1)}s` : "-"} / ${settings.walkAwayS}s${inReading() && !seenThisSession ? " (face not seen yet: off)" : ""}`,
@@ -823,7 +851,7 @@ function drawDebug() {
   ].join("\n");
 }
 
-const inReading = () => ["wake", "greet", "invite", "ask", "probe", "draw", "consult", "speak", "dispense"].includes(state);
+const inReading = () => ["wake", "greet", "sit", "invite", "ask", "probe", "draw", "consult", "speak", "dispense"].includes(state);
 
 function frame(now) {
   watcher.update(now);
@@ -835,6 +863,7 @@ function frame(now) {
       lastFaceAt = now;
       seenThisSession = true;
       noteGuest(watcher.nearest, now);
+      sitCheck(watcher.nearest);
       if (state !== "consult" && state !== "draw" && now > dazedUntil) lookAt(watcher.nearest, now);
     }
     const away = now - lastFaceAt;

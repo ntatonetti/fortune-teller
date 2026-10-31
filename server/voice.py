@@ -20,7 +20,11 @@ ELEVEN_URL = "https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
 # Lines that don't depend on the guest, in a few wordings each so the people
 # waiting in line don't hear the same script twice. Pre-rendered at startup.
 STOCK_LINES: dict[str, list[str]] = {
-    # Tarot readings: before the coin, she has them sit.
+    # Before the coin, she has them sit (unless they already have).
+    "sit_child": [
+        "Sit down, little one... right there on the chair, so we can see each other.",
+        "Hop up on the chair, little one! Fortunes are best told sitting down.",
+    ],
     "sit_adult": [
         "Sit, sit... take the chair, darling. The cards prefer you comfortable.",
         "Please... be seated. The fates do not read for those who hover.",

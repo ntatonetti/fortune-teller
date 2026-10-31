@@ -54,6 +54,8 @@ _SCHEMA_COMMON = {
     },
 }
 
+SEATED_ABOUT = "True if the guest nearest the glass is sitting down (on the chair or stool in front of the booth, or crouched or kneeling at it): eyes level with the booth, a chair back or seat behind them, shoulders low in the frame. False if they are standing or you can't tell."
+
 GREET_SCHEMA = {
     "type": "object",
     "properties": {
@@ -62,8 +64,9 @@ GREET_SCHEMA = {
             "type": "string",
             "description": "One or two short spoken sentences (max 25 words) waking up and noticing a specific costume detail. The first few words make it plain whether you see a child or a grown-up: CHILD mode calls them \"little one\" (or \"young pirate\", \"little witch\"...), ADULT mode \"darling\", \"sir\", \"madam\" or \"traveller\". Ends by beckoning them closer.",
         },
+        "seated": {"type": "boolean", "description": SEATED_ABOUT},
     },
-    "required": ["audience", "group_size", "costume", "greeting"],
+    "required": ["audience", "group_size", "costume", "greeting", "seated"],
     "additionalProperties": False,
 }
 
@@ -160,6 +163,17 @@ COIN_SCHEMA = {
 }
 
 
+SEATED_SYSTEM = """\
+You are the eyes of a fortune-teller booth at a Halloween party. The fortune teller has asked the guest to take a seat in front of the booth. Look at this camera frame and decide whether they are sitting down."""
+
+SEATED_SCHEMA = {
+    "type": "object",
+    "properties": {"seated": {"type": "boolean", "description": SEATED_ABOUT}},
+    "required": ["seated"],
+    "additionalProperties": False,
+}
+
+
 def is_childlike(audience: str) -> bool:
     return audience in ("child", "mixed")
 
@@ -199,7 +213,7 @@ async def _ask(
     started = time.time()
     response, output, error = await _call(schema, effort, max_tokens, content, timeout, model, system)
     kind = {id(GREET_SCHEMA): "greet", id(FORTUNE_SCHEMA): "fortune", id(ASKED_SCHEMA): "asked",
-            id(COIN_SCHEMA): "coin", id(PROBE_SCHEMA): "probe", **{id(t): "fortune" for t in TAROT_SCHEMAS.values()}}.get(id(schema), "other")
+            id(COIN_SCHEMA): "coin", id(SEATED_SCHEMA): "seated", id(PROBE_SCHEMA): "probe", **{id(t): "fortune" for t in TAROT_SCHEMAS.values()}}.get(id(schema), "other")
     history.record(kind, model=model, effort=effort, system=system, content=content, started=started,
                    response=response, output=output, error=error)
     return output
@@ -337,6 +351,20 @@ async def coin_shown(jpeg_b64: str) -> bool | None:
         system=COIN_SYSTEM,
     )
     return data.get("coin") if data else None
+
+
+async def seated(jpeg_b64: str) -> bool | None:
+    """Whether the guest is sitting down (None if Claude is unavailable)."""
+    data = await _ask(
+        SEATED_SCHEMA,
+        "low",
+        1000,
+        [_image_block(jpeg_b64), {"type": "text", "text": "Is the guest sitting down?"}],
+        timeout=5,  # she looks again a moment later anyway
+        model=config.COIN_MODEL,
+        system=SEATED_SYSTEM,
+    )
+    return data.get("seated") if data else None
 
 
 def spread(cards: list[str], kid: bool) -> list[str]:

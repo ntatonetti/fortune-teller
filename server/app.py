@@ -196,6 +196,15 @@ async def coin(frame: Frame):
     return {"coin": shown}
 
 
+@app.post("/api/seated")
+async def seated(frame: Frame):
+    """Whether the guest has taken a seat."""
+    sat = await oracle.seated(_b64(frame.image))
+    if sat is None:
+        raise HTTPException(503, "Claude unavailable")
+    return {"seated": sat}
+
+
 @app.post("/api/asked")
 async def asked(heard: Heard):
     done = await oracle.asked(heard.question, heard.kid, heard.prompt)

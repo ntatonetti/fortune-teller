@@ -6,6 +6,7 @@ class Greeting(BaseModel):
     group_size: int
     costume: str
     greeting: str
+    seated: bool = False  # the guest nearest the glass is sitting down
 
 
 class Fortune(BaseModel):

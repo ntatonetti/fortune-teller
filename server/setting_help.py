@@ -41,7 +41,7 @@ HELP: dict[str, tuple[str, str]] = {
         "4: she never waits more than 4 s on it",
     ),
     "COIN_MODEL": (
-        "While she waits for payment, this Claude model looks at the camera every COIN_LOOK_EVERY_S seconds and says whether they're paying: a coin shown at the glass, or someone reaching forward as if dropping one in the cup (it errs on the generous side). It runs many times per guest, so it should be small and fast.",
+        "While she waits for payment, this Claude model looks at the camera every COIN_LOOK_EVERY_S seconds and says whether they're paying: a coin shown at the glass, or someone reaching forward as if dropping one in the cup (it errs on the generous side). It also watches for them taking a seat. It runs many times per guest, so it should be small and fast.",
         "claude-haiku-5-5: about 2 s a look, roughly a hundredth of a cent each",
     ),
     "CHAT_MODEL": (
@@ -211,9 +211,9 @@ HELP: dict[str, tuple[str, str]] = {
         "While she waits for payment, how often she shows the camera to COIN_MODEL to see whether they're showing a coin or reaching forward to drop one in. Lower spots the coin sooner but makes more Claude calls. 0 turns it off: then only the button (or Space) pays.",
         "1.5: each look takes Claude about 2 s, so she notices a coin within 2 to 4 s",
     ),
-    "SIT_S": (
-        "Tarot readings only: after the greeting she asks them to take a seat, then waits this long for them to settle in before she asks for the coin.",
-        "3; 0 if there is no chair",
+    "SIT_WAIT_S": (
+        "Every reading, child or grown-up, is a sit-down one. If they're seated when she wakes, or sit down any time after, she goes straight on. Otherwise, after the greeting, she asks them to take a seat (once more halfway through) and waits up to this long, COIN_MODEL looking at the camera every COIN_LOOK_EVERY_S, before asking for the coin anyway, so a guest who won't sit doesn't hold up the line.",
+        "20; 0 if there is no chair",
     ),
     "COIN_CUP_S": (
         "Once she has seen their coin (held up, or on its way into the cup), how long she waits for it to land before the clink and their question.",

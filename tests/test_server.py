@@ -60,6 +60,7 @@ def test_endpoints_when_claude_is_down():
         assert client.post("/api/fortune", json={"image": FAKE_JPEG, "audience": "adult"}).status_code == 503
         assert client.post("/api/asked", json={"question": "will I"}).status_code == 503
         assert client.post("/api/coin", json={"image": FAKE_JPEG}).status_code == 503
+        assert client.post("/api/seated", json={"image": FAKE_JPEG}).status_code == 503
 
         assert client.post("/api/print", json=PIRATE).json()["status"] == "console"
 
@@ -100,6 +101,20 @@ def test_coin_looks_at_the_camera_with_a_quick_model(monkeypatch):
         assert client.post("/api/coin", json={"image": "nope"}).status_code == 400
     assert seen["model"] == "claude-haiku-5-5" and seen["system"] == oracle.COIN_SYSTEM
     assert seen["kinds"] == ["image", "text"]
+
+
+def test_seated_looks_at_the_camera_with_the_coin_model(monkeypatch):
+    seen = {}
+
+    async def fake_ask(schema, effort, max_tokens, content, timeout, model=None, system=None):
+        seen.update(model=model, system=system, schema=schema)
+        return {"seated": True}
+
+    monkeypatch.setattr(oracle, "_ask", fake_ask)
+    with TestClient(app_module.app) as client:
+        assert client.post("/api/seated", json={"image": FAKE_JPEG}).json() == {"seated": True}
+    assert seen["model"] == "claude-haiku-5-5" and seen["system"] == oracle.SEATED_SYSTEM
+    assert seen["schema"] is oracle.SEATED_SCHEMA and "seated" in oracle.GREET_SCHEMA["required"]
 
 
 def test_bad_requests():
