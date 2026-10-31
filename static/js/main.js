@@ -27,7 +27,6 @@ const DEFAULTS = {
   button: true, // false = start the reading automatically after the invite
   listen: true, // hear secrets and questions through the mic
   glitchRate: 0.2, // chance an adult reading has a mechanical seizure
-  walkAwayS: 8, // no face for this long mid-reading = they left; she shuts down
 };
 const settings = { ...DEFAULTS, ...JSON.parse(localStorage.getItem("oracle-settings") || "{}") };
 const save = () => localStorage.setItem("oracle-settings", JSON.stringify(settings));
@@ -843,7 +842,7 @@ function drawDebug() {
     `seated: ${reading ? (reading.seated ? "yes" : "no") : "-"}`,
     `question: ${reading?.question || "-"}`,
     `talk: ${reading?.talk.length ?? "-"} · cards: ${reading?.cards.map((c) => c.name).join(", ") || "-"}`,
-    `walk-away: ${inReading() ? `${((performance.now() - lastFaceAt) / 1000).toFixed(1)}s` : "-"} / ${settings.walkAwayS}s${inReading() && !seenThisSession ? " (face not seen yet: off)" : ""}`,
+    `walk-away: ${inReading() ? `${((performance.now() - lastFaceAt) / 1000).toFixed(1)}s` : "-"} / ${T.walk_away}s${inReading() && !seenThisSession ? " (face not seen yet: off)" : ""}`,
     `costume: ${reading?.costume || "-"}`,
     `last guest: ${lastGuest ? `alike ${lastGuest.alike.toFixed(2)} (same ≥ ${T.same_guest}) · seen ${((performance.now() - lastGuest.at) / 1000).toFixed(1)}s ago` : "-"}`,
     `printer: ${server.printer}${maxWords ? ` · brief: ${maxWords} words` : ""}`,
@@ -870,7 +869,7 @@ function frame(now) {
     // Once she is telling their fortune she finishes it: a guest looking down
     // at the cards, or leaning out of the camera, hasn't left.
     const telling = state === "speak" || state === "dispense";
-    if (seenThisSession && !walkedAway && !telling && settings.walkAwayS > 0 && away > settings.walkAwayS * 1000) {
+    if (seenThisSession && !walkedAway && !telling && T.walk_away > 0 && away > ms("walk_away")) {
       walkedAway = true;
       // Cut off whatever she is waiting on so the reading notices right away.
       speaking?.stop();
@@ -937,8 +936,6 @@ const KEYS = {
       toast("Couldn't change the audience");
     }
   },
-  j: () => adjustWalkAway(-1),
-  k: () => adjustWalkAway(1),
   "[": () => adjustNear(-0.01),
   "]": () => adjustNear(0.01),
   f: () => (document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen()),
@@ -960,12 +957,6 @@ function toggle(key, label, after) {
   save();
   toast(`${label}: ${settings[key] ? "on" : "off"}`);
   after?.();
-}
-
-function adjustWalkAway(d) {
-  settings.walkAwayS = clamp(settings.walkAwayS + d, 3, 30);
-  save();
-  toast(`Walk away: she gives up after ${settings.walkAwayS}s without a face`);
 }
 
 function adjustNear(d) {
