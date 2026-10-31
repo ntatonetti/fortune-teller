@@ -33,7 +33,7 @@ STOCK_LINES: dict[str, list[str]] = {
         "Please... be seated.",
         "Come. Sit before the glass.",
         "Take a seat, darling.",
-        "Sit! The chair is haunted, but polite.",
+        "Sit! The chair won't bite.",
         "Sit. You're taller than the fates like.",
     ],
     # They didn't sit: fine, on with it (kids hear these too).
