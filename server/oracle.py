@@ -60,7 +60,7 @@ GREET_SCHEMA = {
         **_SCHEMA_COMMON,
         "greeting": {
             "type": "string",
-            "description": "One or two short spoken sentences (max 25 words) waking up and noticing a specific costume detail. Ends by beckoning them closer.",
+            "description": "One or two short spoken sentences (max 25 words) waking up and noticing a specific costume detail. The first few words make it plain whether you see a child or a grown-up: CHILD mode calls them \"little one\" (or \"young pirate\", \"little witch\"...), ADULT mode \"darling\", \"sir\", \"madam\" or \"traveller\". Ends by beckoning them closer.",
         },
     },
     "required": ["audience", "group_size", "costume", "greeting"],

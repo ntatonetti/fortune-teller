@@ -1,7 +1,7 @@
 """Drives one full reading in Chrome with a fake camera and saves screenshots.
 
-Usage: [ADULT=1] .venv/bin/python scripts/smoke.py [outdir]   (server must be running on :8000)
-ADULT=1 forces adult mode and a mid-fortune glitch. HEAD=1 runs in foam-head mode
+Usage: [ADULT=1 | CHILD=1] .venv/bin/python scripts/smoke.py [outdir]   (server must be running on :8000)
+ADULT=1 forces adult mode and a mid-fortune glitch; CHILD=1 forces child mode. HEAD=1 runs in foam-head mode
 and also screenshots the alignment screen. SECRET=1 pays with a whispered secret and
 asks a question (a fake microphone stands in for speech recognition). WALKAWAY=1 has
 the guest walk off at the payment step (WALKAWAY=speak: during the fortune) and checks that she shuts down. A steady fake face
@@ -47,6 +47,9 @@ with sync_playwright() as p:
     if os.getenv("ADULT"):
         page.keyboard.press("a")  # force adult mode
         page.keyboard.press("g")  # and a mid-fortune glitch
+    elif os.getenv("CHILD"):
+        page.keyboard.press("a")
+        page.keyboard.press("a")  # force child mode
     page.screenshot(path=out / "1-asleep.png")
 
     def state():
@@ -128,7 +131,7 @@ with sync_playwright() as p:
             page.wait_for_timeout(1500)
             page.screenshot(path=out / "4-consult.png")
         page.wait_for_timeout(200)
-    print("states:", " -> ".join(seen))
+    print("style:", page.evaluate("window.oracleReading().style") or "plain", "· states:", " -> ".join(seen))
     page.wait_for_timeout(2500)
     page.screenshot(path=out / "5-speaking.png")
     print("reached:", state())

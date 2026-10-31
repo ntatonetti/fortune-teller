@@ -465,6 +465,15 @@ function adultStyle() {
   return styles[Math.floor(Math.random() * styles.length)] || "";
 }
 
+// The sign that drops in the moment she has decided: a child's reading or a
+// grown-up's, so everyone can see at once which she thinks they are.
+function showSeeker(kid) {
+  const sign = $("seeker");
+  sign.textContent = kid ? "A child's reading" : "A grown-up's reading";
+  sign.className = kid ? "child" : "adult";
+  sign.hidden = false;
+}
+
 async function runReading({ paid = false } = {}) {
   state = "wake";
   stopSleepTalk();
@@ -498,6 +507,7 @@ async function runReading({ paid = false } = {}) {
   if (!showFace) puppet.guestFace = null;
   reading = { audience, kid, style: kid ? "" : adultStyle(), costume: greet?.costume || "", fortune: null, paidWith: paid ? "coin" : "", question: "", talk: [], cards: [] };
   puppet.set({ brow: kid ? 1 : 0.4 });
+  showSeeker(kid);
 
   state = "greet";
   if (greet?.greeting) await say(greet.audio, greet.greeting);
@@ -623,6 +633,7 @@ async function consultAndSpeak() {
 
 async function sleepAgain() {
   state = "farewell";
+  $("seeker").hidden = true;
   sound.clock(false);
   sound.creak();
   puppet.flicker = false;
