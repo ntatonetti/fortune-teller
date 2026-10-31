@@ -13,15 +13,15 @@ HELP: dict[str, tuple[str, str]] = {
         "claude-opus-5-5 for the best readings; claude-haiku-5-5 if guests wait too long for her to speak",
     ),
     "GREET_EFFORT": (
-        "How long Claude may think before greeting someone. More effort means a sharper first line but a longer silence after she wakes, so keep it low: the greeting should come quickly.",
-        "low: she greets about a second after waking",
+        "How long Claude may think before greeting someone. The greeting is also where she decides whether she sees a child or a grown-up. If it doesn't come back within GREET_TIMEOUT_S she plays it safe and treats everyone as a child, so keep it low: more effort barely sharpens the first line.",
+        "low: 2 to 4 s with Fable or Opus. max: 12 to 24 s, past the 8 s timeout, so every grown-up gets the child reading",
     ),
     "FORTUNE_EFFORT": (
-        "How long Claude may think over the fortune. The fortune is the main event and she is already consulting her ball, so a pause is part of the show. More effort gives more specific, better-built fortunes.",
-        "high: richer fortunes, a few more seconds of consulting",
+        "How long Claude may think over the fortune. The fortune is the main event and she is already consulting her ball, so a pause is part of the show. More effort gives more specific, better-built fortunes, but it must finish inside FORTUNE_TIMEOUT_S or she says the spirits are silent.",
+        "With Fable: low about 8 s, medium 9 to 12 s, high 10 to 19 s (raise FORTUNE_TIMEOUT_S to 30), max 75 to 80 s (never finishes in time)",
     ),
     "GREET_TIMEOUT_S": (
-        "If Claude hasn't sent the greeting back by then, she skips it and goes straight on to asking for payment, so a slow network never leaves a guest staring at a silent face.",
+        "If Claude hasn't sent the greeting back by then, she skips it and goes straight on to asking for payment, so a slow network never leaves a guest staring at a silent face. Without a greeting she can't tell a child from a grown-up, so she treats them as a child.",
         "8: on a slow connection, raise it to 12",
     ),
     "FORTUNE_TIMEOUT_S": (
