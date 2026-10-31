@@ -64,7 +64,7 @@ class Frame(BaseModel):
     audience: str = ""
     costume: str = ""
     question: str = ""
-    paid_with: str = ""  # "coin" | "secret" | ""
+    paid_with: str = ""  # "secret" | "sound" | "button" | ""
     max_words: int = 0  # debug: cap what she says (?brief in the URL); 0 = full length
     talk: list[Talk] = []  # her questions back, and their answers
     cards: list[str] = []  # the tarot spread they drew: past, present, future
@@ -183,17 +183,6 @@ async def greet(frame: Frame):
     log.info("greet: audience=%s size=%d costume=%r", g.audience, g.group_size, g.costume)
     audio = await voice.speak(g.greeting) if g.audience != "nobody" else None
     return {**g.model_dump(), "audio": _audio_url(audio)}
-
-
-@app.post("/api/coin")
-async def coin(frame: Frame):
-    """Whether they're paying: a coin shown at the glass, or a reach to drop one in."""
-    shown = await oracle.coin_shown(_b64(frame.image))
-    if shown is None:
-        raise HTTPException(503, "Claude unavailable")
-    if shown:
-        log.info("coin: seen")
-    return {"coin": shown}
 
 
 @app.post("/api/seated")

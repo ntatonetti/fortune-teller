@@ -41,7 +41,7 @@ HELP: dict[str, tuple[str, str]] = {
         "4: she never waits more than 4 s on it",
     ),
     "COIN_MODEL": (
-        "While she waits for payment, this Claude model looks at the camera every COIN_LOOK_EVERY_S seconds and says whether they're paying: a coin shown at the glass, or someone reaching forward as if dropping one in the cup (it errs on the generous side). It also watches for them taking a seat. It runs many times per guest, so it should be small and fast.",
+        "While she waits for them to take a seat, this Claude model looks at the camera every COIN_LOOK_EVERY_S seconds and says whether they're sitting down. (The name is left over from when guests paid with a coin.) It can run many times per guest, so it should be small and fast.",
         "claude-haiku-5-5: about 2 s a look, roughly a hundredth of a cent each",
     ),
     "CHAT_MODEL": (
@@ -200,24 +200,20 @@ HELP: dict[str, tuple[str, str]] = {
     ),
     # Paying
     "PAY_TIMEOUT_S": (
-        "After asking for payment (a gold coin shown at the glass or dropped in the cup, a whispered secret from grown-ups, or the button), how long she waits before giving up and going back to sleep.",
+        "After asking for payment (a whispered secret from grown-ups, a spooky sound from kids, or the button), how long she waits before giving up and going back to sleep.",
         "40",
     ),
     "SECRET_LISTEN_S": (
-        "How long each stretch of listening for a whispered secret lasts. Grown-ups only: kids pay with a coin. Anything the mic hears counts as a secret. The words never leave the browser.",
+        "How long each stretch of listening for payment lasts. Grown-ups whisper a secret: two or more words count, and they never leave the browser. Kids make a spooky sound instead: any word the mic catches counts, and so does the room suddenly getting louder (a wordless howl).",
         "12",
     ),
     "COIN_LOOK_EVERY_S": (
-        "While she waits for payment, how often she shows the camera to COIN_MODEL to see whether they're showing a coin or reaching forward to drop one in. Lower spots the coin sooner but makes more Claude calls. 0 turns it off: then only the button (or Space) pays.",
-        "1.5: each look takes Claude about 2 s, so she notices a coin within 2 to 4 s",
+        "While she waits for them to take a seat, how often she shows the camera to COIN_MODEL to see whether they're sitting. Lower spots it sooner but makes more Claude calls. 0 turns it off: then only their face dropping counts.",
+        "1.5: each look takes Claude about 2 s, so she notices within 2 to 4 s",
     ),
     "SIT_WAIT_S": (
-        "Every reading, child or grown-up, is a sit-down one. If they're seated when she wakes, or sit down any time after, she goes straight on. Otherwise, after the greeting, she asks them to take a seat (once more halfway through) and waits up to this long, COIN_MODEL looking at the camera every COIN_LOOK_EVERY_S, before asking for the coin anyway, so a guest who won't sit doesn't hold up the line.",
+        "Every reading, child or grown-up, is a sit-down one. If they're seated when she wakes, or sit down any time after, she goes straight on. Otherwise, after the greeting, she asks them to take a seat (once more halfway through) and waits up to this long, COIN_MODEL looking at the camera every COIN_LOOK_EVERY_S, before asking for payment anyway, so a guest who won't sit doesn't hold up the line.",
         "20; 0 if there is no chair",
-    ),
-    "COIN_CUP_S": (
-        "Once she has seen their coin (held up, or on its way into the cup), how long she waits for it to land before the clink and their question.",
-        "2.5; raise it if the cup is a step or two away from the glass",
     ),
     "COIN_PAUSE_S": (
         "After the button (or Space) is pressed instead, a beat before she asks for their question.",

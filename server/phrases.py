@@ -28,7 +28,7 @@ ADULT = {
         (3, "Hold still... the gears are turning for you."),
         (3, "Let me look deeper... past the costume, to the soul wearing it."),
         (3, "The mist parts... and I see..."),
-        (3, "Your coin is still warm... it remembers where it has been."),
+        (3, "Your secret is still warm... it remembers where it has been."),
         # crazier-2026-10-29
         (1, "Do not look at my left eye... it has been places you have not."),
         # crazier-2026-10-29

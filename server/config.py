@@ -84,7 +84,7 @@ FORTUNE_TIMEOUT_S = _setting("FORTUNE_TIMEOUT_S", 20, "gives up on the fortune a
 ASKED_MODEL = _setting("ASKED_MODEL", "claude-haiku-5-5", "judges whether a guest has finished asking", str, MODELS)
 ASKED_TIMEOUT_S = _setting("ASKED_TIMEOUT_S", 4, "gives up on that judgement after this", span=[1, 15, 0.5])
 CHAT_MODEL = _setting("CHAT_MODEL", "claude-haiku-5-5", "writes the questions she asks them back, mid-reading", str, MODELS)
-COIN_MODEL = _setting("COIN_MODEL", "claude-haiku-5-5", "watches for the coin they show her or drop in the cup, and for them sitting down", str, MODELS)
+COIN_MODEL = _setting("COIN_MODEL", "claude-haiku-5-5", "watches the camera for them sitting down", str, MODELS)
 
 _section = "The conversation"
 AUDIENCE = _setting("AUDIENCE", "auto", "who she reads for: auto (she judges each guest from the camera), child or adult (everyone, no guessing)", str, ["auto", "child", "adult"])
@@ -166,10 +166,9 @@ _TIMINGS = {
     "GLANCE_S": (0.9, "how long a glance away holds (0 = she never glances away)", (0, 3, 0.1)),
     # paying
     "SIT_WAIT_S": (20, "standing guests: once she asks them to sit, how long she waits for it (looking every COIN_LOOK_EVERY_S) before going on anyway", (0, 60, 1)),
-    "PAY_TIMEOUT_S": (40, "no coin or secret by then: she goes back to sleep", (5, 120, 5)),
-    "SECRET_LISTEN_S": (12, "each stretch of listening for a whispered secret", (3, 30, 1)),
-    "COIN_LOOK_EVERY_S": (1.5, "waiting for payment, how often she looks for a coin shown or dropped in the cup (0 = never: the button pays)", (0, 5, 0.25)),
-    "COIN_CUP_S": (2.5, "after she sees their coin, time to drop it in the cup before she asks their question", (0, 6, 0.5)),
+    "PAY_TIMEOUT_S": (40, "no secret (or spooky sound from a kid) by then: she goes back to sleep", (5, 120, 5)),
+    "SECRET_LISTEN_S": (12, "each stretch of listening for a whispered secret, or a kid's spooky sound", (3, 30, 1)),
+    "COIN_LOOK_EVERY_S": (1.5, "waiting for them to sit, how often she looks (0 = never: she waits all of SIT_WAIT_S unless she sees their face drop)", (0, 5, 0.25)),
     "COIN_PAUSE_S": (0.8, "after the button is pressed, before she asks their question", (0, 3, 0.1)),
     # their question
     "QUESTION_MAX_S": (30, "longest she listens to a question", (5, 60, 1)),

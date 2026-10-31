@@ -1,5 +1,5 @@
 // The show: a state machine that runs one reading at a time.
-//   sleep -> wake (looks at you) -> greet -> sit (unless seated) -> invite (gold coin or a whispered secret)
+//   sleep -> wake (looks at you) -> greet -> sit (unless seated) -> invite (a whispered secret, or a spooky sound from kids)
 //   -> ask (listens for their question) -> probe (asks one back: FOLLOW_UP)
 //   -> draw (three tarot cards, one after another: TAROT)
 //   -> consult -> speak (card by card) -> dispense -> farewell -> sleep
@@ -196,9 +196,9 @@ function clearHeard() {
   $("subtitle").classList.remove("show", "heard");
 }
 
-// Payment: a gold coin shown to the camera (or dropped in the cup), the button,
-// or, for grown-ups, a whispered secret.
-// Resolves "seen", "coin", "secret", or null if they walked away or timed out.
+// Payment: a whispered secret from grown-ups, a spooky sound from kids, or the
+// button (the operator's backup).
+// Resolves "secret", "sound", "button", or null if they walked away or timed out.
 function waitForPayment(timeoutMs) {
   let finish;
   let done = false;
@@ -216,30 +216,33 @@ function waitForPayment(timeoutMs) {
       ears.cancel();
       resolve(v);
     };
-    tokenWaiter = () => finish("coin");
+    tokenWaiter = () => finish("button");
   });
-  // Every COIN_LOOK_EVERY, show Claude the camera until it sees a coin held up.
-  promise.watchForCoin = async () => {
-    while (T.coin_look_every > 0 && !done) {
-      const t0 = performance.now();
-      const shot = watcher.snapshot(640);
-      const seen = shot && (await api("/api/coin", { image: shot }).then((r) => r.coin, () => false));
-      if (seen) return finish("seen");
-      await wait(Math.max(0, ms("coin_look_every") - (performance.now() - t0)));
-    }
-  };
   // Call once she has finished speaking, so she never hears herself.
   promise.listenForSecret = async () => {
     while (listening() && tokenWaiter) {
       const t0 = performance.now();
       const heard = await ears.listen({ maxMs: ms("secret_listen"), waitMs: ms("secret_listen"), onHeard: (t) => showHeard(t, { secret: true }) });
-      if (ears.failed) toast(`Mic unavailable (${ears.failed}): coins only. Press / to type for guests.`);
+      if (ears.failed) toast(`Mic unavailable (${ears.failed}): press the button, or / to type for guests.`);
       if (performance.now() - t0 < 1000) await wait(1000); // don't spin if recognition keeps bailing
       if (wordCount(heard) >= 2) {
         // The words are dropped right here: nothing about the secret leaves the browser.
         finish("secret");
         return;
       }
+    }
+  };
+  // Kids: any sound pays. A word the mic catches ("boo!") or the room suddenly
+  // getting louder (a wordless "ooooo"). Also called once she has finished speaking.
+  promise.listenForSound = async () => {
+    if (!settings.listen) return;
+    promise.then(ears.watchLoud(() => finish("sound")));
+    while (listening() && tokenWaiter) {
+      const t0 = performance.now();
+      const heard = await ears.listen({ maxMs: ms("secret_listen"), waitMs: ms("secret_listen"), onHeard: (t) => (showHeard(t), t && finish("sound")) });
+      if (heard) return finish("sound"); // typed by the operator
+      if (ears.failed) toast(`Mic unavailable (${ears.failed}): press the button, or / to type for guests.`);
+      if (performance.now() - t0 < 1000) await wait(1000);
     }
   };
   return promise;
@@ -549,7 +552,7 @@ async function runReading({ paid = false } = {}) {
   const kid = audience === "child" || audience === "mixed";
   const showFace = !kid || !!server.kid_flicker; // kids see their face in hers only with KID_FLICKER
   if (!showFace) puppet.guestFace = null;
-  reading = { audience, kid, style: kid ? "" : adultStyle(), costume: greet?.costume || "", seated: !!greet?.seated, standing, fortune: null, paidWith: paid ? "coin" : "", question: "", talk: [], cards: [] };
+  reading = { audience, kid, style: kid ? "" : adultStyle(), costume: greet?.costume || "", seated: !!greet?.seated, standing, fortune: null, paidWith: paid ? "button" : "", question: "", talk: [], cards: [] };
   puppet.set({ brow: kid ? 1 : 0.4 });
   showSeeker(kid);
 
@@ -558,34 +561,29 @@ async function runReading({ paid = false } = {}) {
   stillHere();
   await seatThem(kid);
 
-  let seen = false; // they held up a coin and she saw it
   if (!paid) {
     state = "invite";
-    const coin = T.coin_look_every > 0 ? "show me a gold coin" : "a gold coin";
-    setPrompt(listening() && !kid ? `✦ ${coin}… or a secret ✦` : `✦ ${coin} ✦`);
+    setPrompt(kid ? "✦ make a spooky sound ✦" : "✦ whisper me a secret ✦");
     const payment = waitForPayment(ms("pay_timeout"));
     payment.then((v) => v && speaking?.stop()); // paying mid-sentence cuts her off
-    payment.watchForCoin(); // eager kids hold it up before she's done asking
     await sayStock(kid ? "invite_child" : "invite_adult");
     if (!settings.button && !listening()) tokenWaiter?.();
-    if (!kid) payment.listenForSecret(); // kids pay with a coin, never a secret
+    if (kid) payment.listenForSound(); // kids never tell secrets
+    else payment.listenForSecret();
     const paidWith = await payment;
     setPrompt("");
     clearHeard();
     stillHere();
     if (!paidWith) return sleepAgain();
-    reading.paidWith = paidWith === "seen" ? "coin" : paidWith;
-    seen = paidWith === "seen";
+    reading.paidWith = paidWith;
   }
 
   if (reading.paidWith === "secret") {
     sound.shimmer();
     await sayStock("secret_adult");
-  } else if (seen) {
-    // She saw it; they drop it in the cup themselves, and she hears it land.
-    await sayStock(kid ? "coin_seen_child" : "coin_seen_adult");
-    await wait(ms("coin_cup"));
-    sound.coin();
+  } else if (reading.paidWith === "sound") {
+    sound.shimmer();
+    await sayStock("sound_child");
   } else {
     sound.coin();
     await wait(ms("coin_pause"));
@@ -937,7 +935,7 @@ const KEYS = {
 function typeForGuest() {
   if (!ears.listening) return toast("She isn't listening right now");
   // window.prompt blocks; the listen's own timers resume when it closes.
-  const what = { invite: "the guest's secret (it is not saved)", probe: "the guest's answer", draw: "“stop”, to stop the card" }[state] || "the guest's question";
+  const what = { invite: reading?.kid ? "the kid's spooky sound (any word)" : "the guest's secret (it is not saved)", probe: "the guest's answer", draw: "“stop”, to stop the card" }[state] || "the guest's question";
   const text = window.prompt(`Type ${what}:`);
   if (text) ears.inject(text);
 }

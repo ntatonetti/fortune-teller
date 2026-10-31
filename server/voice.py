@@ -20,7 +20,7 @@ ELEVEN_URL = "https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
 # Lines that don't depend on the guest, in a few wordings each so the people
 # waiting in line don't hear the same script twice. Pre-rendered at startup.
 STOCK_LINES: dict[str, list[str]] = {
-    # Before the coin, she has them sit (unless they already have).
+    # Before payment, she has them sit (unless they already have).
     "sit_child": [
         "Sit down, little one... right there on the chair, so we can see each other.",
         "Hop up on the chair, little one! Fortunes are best told sitting down.",
@@ -35,34 +35,26 @@ STOCK_LINES: dict[str, list[str]] = {
         "Do sit. The chair is haunted, but only a little... and it's very polite.",
         "Sit down, before the fates notice you're taller than they are. They hate that.",
     ],
+    # Grown-ups pay with a whispered secret, kids with a spooky sound.
     "invite_adult": [
-        "The fates demand payment. A pirate's gold coin, if you have one... hold it up to the glass, so I can see it shine. If your pockets are empty... whisper me a secret instead.",
-        "Payment first, darling. Show me one pirate's gold coin, up to the glass... or, if you carry no gold, confess a secret.",
-        "The gears do not turn for free. Hold a gold coin up where I can see it... or whisper a secret, close. Your choice.",
-        "Before the veil lifts... a toll. One golden coin, held to the glass. No gold? Then a secret will do... whispered softly.",
-        "I would do this for free, darling, but the gears have a union. One gold coin up to the glass... or pay them in gossip. Whisper me a secret.",
-        "Ahem. The fates accept pirate gold and juicy secrets. Not cards, not checks, and absolutely not candy corn. Coin to the glass... or whisper.",
+        "The fates demand payment... and they do not take gold. Lean close to the glass, darling, and whisper me a secret.",
+        "Payment first. Not coin... a secret. Something true, something small... whisper it to the glass.",
+        "The gears do not turn for free. Feed them a secret... whispered, close. They will keep it.",
+        "Before the veil lifts... a toll. One secret, whispered softly. The juicier, the better.",
+        "I would do this for free, darling, but the gears have a union. They want gossip. Whisper me a secret.",
+        "Ahem. The fates accept secrets only. Not cash, not cards, and absolutely not candy corn. Whisper one to the glass.",
     ],
     "invite_child": [
-        "Do you have a golden pirate coin, little one? Show it to me through the glass... then pop it in the cup!",
-        "Every fortune costs one golden coin! Hold it up so I can see it shine... then drop it in the cup.",
-        "A fortune for a golden coin! Hold it up to the glass so I can see... then into the cup it goes!",
-        "Arr! Got any pirate gold, matey? Show me through the glass... then plop it in the cup!",
+        "Every fortune costs one spooky sound, little one! Give me your scariest... BOO... or your best ghost howl!",
+        "To wake the spirits, I need a spooky sound! A ghost's oooooo... a witch's cackle... anything! Go on!",
+        "Can you howl like a werewolf, little one? Or moan like a ghost? Make me your spookiest sound!",
+        "The spirits only answer to spooky sounds! Your best boo, please... as loud as you dare!",
     ],
-    # She saw the coin, held up or on its way into the cup.
-    "coin_seen_adult": [
-        "Ahh... real pirate gold. Into the cup it goes.",
-        "I saw it gleam, darling. Into the cup... the fates are paid.",
-        "Gold... how it shines. Into the cup, and we may begin.",
-        "Yes... that is the real thing. The cup, if you please.",
-        "Oh, it's gorgeous. I'd bite it to check, but... no teeth. Into the cup.",
-        "Gold! Somewhere a pirate is furious. Quick, into the cup before he notices.",
-    ],
-    "coin_seen_child": [
-        "Ooh, what a shiny coin! Into the cup it goes!",
-        "I saw it! Real pirate gold! Into the cup, little one.",
-        "There it is! Shiny as a star. Into the cup!",
-        "Woo-hoo, treasure! A pirate somewhere is very jealous. Into the cup!",
+    "sound_child": [
+        "Eek! That was terrifying! The spirits are wide awake now.",
+        "Ooh, what a spooky sound! You gave my gears goosebumps.",
+        "Aaah! You scared a bolt right out of me! Very well, little one... the fates are paid.",
+        "Wonderful! Somewhere a real ghost just got jealous.",
     ],
     "secret_adult": [
         "Mmm... a delicious secret. It is safe with the gears... for now.",

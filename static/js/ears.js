@@ -117,6 +117,48 @@ export class Ears {
     });
   }
 
+  // Calls onLoud() once, when the room suddenly gets louder than it has been
+  // (a howl, a "boo") for a quarter second: wordless sounds that speech
+  // recognition may not transcribe. Returns a function that stops listening.
+  watchLoud(onLoud, { factor = 3, holdMs = 250 } = {}) {
+    let stopped = false;
+    let stream, ctx, tick;
+    const stop = () => {
+      stopped = true;
+      clearInterval(tick);
+      stream?.getTracks().forEach((t) => t.stop());
+      ctx?.close().catch(() => {});
+    };
+    navigator.mediaDevices
+      .getUserMedia({ audio: { autoGainControl: false } })
+      .then((s) => {
+        stream = s;
+        if (stopped) return stop();
+        ctx = new AudioContext();
+        const an = ctx.createAnalyser();
+        an.fftSize = 1024;
+        ctx.createMediaStreamSource(s).connect(an);
+        const buf = new Float32Array(an.fftSize);
+        const started = performance.now();
+        let room = null; // the room's level, slowly following it
+        let loudSince = 0;
+        tick = setInterval(() => {
+          an.getFloatTimeDomainData(buf);
+          const rms = Math.sqrt(buf.reduce((sum, v) => sum + v * v, 0) / buf.length);
+          const now = performance.now();
+          room = room === null ? rms : room * 0.98 + rms * 0.02;
+          if (now - started < 700 || rms < Math.max(room, 0.003) * factor) return void (loudSince = 0);
+          loudSince ||= now;
+          if (now - loudSince >= holdMs) {
+            stop();
+            onLoud();
+          }
+        }, 50);
+      })
+      .catch((e) => console.warn("mic level unavailable", e));
+    return stop;
+  }
+
   // Stop now and keep whatever has been heard so far.
   stop() {
     this._current?.finish();

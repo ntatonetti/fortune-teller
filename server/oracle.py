@@ -147,22 +147,6 @@ ASKED_SCHEMA = {
     "additionalProperties": False,
 }
 
-COIN_SYSTEM = """\
-You are the eyes of a fortune-teller booth at a Halloween party. The fortune teller has asked the guest to pay with a gold coin: show it to her through the glass, then drop it in the cup in front of the booth. Look at this camera frame and decide whether they are paying. Be generous: a free fortune now and then does no harm, but a guest left waiting with their coin does.
-
-Yes, either of:
-- a coin or coin-like token in someone's hand or fingers: a plastic pirate doubloon, a chocolate coin in gold foil, a real coin, a poker chip. Small, blurry or half-hidden by fingers still counts.
-- someone reaching forward toward the booth, arm stretched out or hand low at the front as if dropping something in, even if no coin is visible.
-No: hands down, at their sides or holding props, nobody reaching toward the booth; a coin only printed on a costume or worn as jewelry."""
-
-COIN_SCHEMA = {
-    "type": "object",
-    "properties": {"coin": {"type": "boolean", "description": "True if someone is showing a coin or coin-like token, or reaching forward as if to drop one in."}},
-    "required": ["coin"],
-    "additionalProperties": False,
-}
-
-
 SEATED_SYSTEM = """\
 You are the eyes of a fortune-teller booth at a Halloween party. The fortune teller has asked the guest to take a seat in front of the booth. Look at this camera frame and decide whether they are sitting down."""
 
@@ -213,7 +197,7 @@ async def _ask(
     started = time.time()
     response, output, error = await _call(schema, effort, max_tokens, content, timeout, model, system)
     kind = {id(GREET_SCHEMA): "greet", id(FORTUNE_SCHEMA): "fortune", id(ASKED_SCHEMA): "asked",
-            id(COIN_SCHEMA): "coin", id(SEATED_SCHEMA): "seated", id(PROBE_SCHEMA): "probe", **{id(t): "fortune" for t in TAROT_SCHEMAS.values()}}.get(id(schema), "other")
+            id(SEATED_SCHEMA): "seated", id(PROBE_SCHEMA): "probe", **{id(t): "fortune" for t in TAROT_SCHEMAS.values()}}.get(id(schema), "other")
     history.record(kind, model=model, effort=effort, system=system, content=content, started=started,
                    response=response, output=output, error=error)
     return output
@@ -338,21 +322,6 @@ async def asked(question: str, kid: bool, prompt: str = "") -> bool | None:
     return data.get("done") if data else None
 
 
-async def coin_shown(jpeg_b64: str) -> bool | None:
-    """Whether someone in the frame is paying: showing a coin, or reaching forward to drop
-    one in (None if Claude is unavailable)."""
-    data = await _ask(
-        COIN_SCHEMA,
-        "low",
-        1000,
-        [_image_block(jpeg_b64), {"type": "text", "text": "Is someone showing a coin, or reaching forward to drop one in?"}],
-        timeout=5,  # she asks again a moment later anyway
-        model=config.COIN_MODEL,
-        system=COIN_SYSTEM,
-    )
-    return data.get("coin") if data else None
-
-
 async def seated(jpeg_b64: str) -> bool | None:
     """Whether the guest is sitting down (None if Claude is unavailable)."""
     data = await _ask(
@@ -467,8 +436,8 @@ async def fortune(
         child_note = "\n\nWhen they first approached you saw a child. Use CHILD mode no matter what."
     # The secret itself is never sent anywhere, only the fact that they paid with one.
     payment = {
-        "coin": "They paid with a pirate's gold coin.",
-        "secret": "They had no coin, so they paid by whispering you a secret. You may say it is safe with you, but you never learned or repeat what it was.",
+        "secret": "They paid by whispering you a secret. You may say it is safe with you, but you never learned or repeat what it was.",
+        "sound": "They paid by making you their spookiest sound.",
     }.get(paid_with, "They have paid.")
     asked = (
         f"\n\nThey asked the fates, out loud (transcribed from speech, so it may be garbled, and may include asides to the people with them):\n<question>{question}</question>\nAnswer the question they settled on in the fortune."
