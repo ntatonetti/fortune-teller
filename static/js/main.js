@@ -684,7 +684,7 @@ async function sleepAgain() {
   puppet.shuffling = false;
   puppet.card = null;
   puppet.guestFace = null; // forget their face
-  puppet.set({ dim: 1, lidL: 1, lidR: 1, brow: 0, turn: 0, eyeX: 0, eyeY: 0 }); // asleep: just dimmed
+  puppet.set({ dim: 1, lidL: 0, lidR: 0, brow: 0, turn: 0, eyeX: 0, eyeY: 0 }); // asleep: dimmed, eyes shut
   puppet.gearTarget = 0.15;
   puppet.ballTarget = 0.15;
   sound.ball(0); // asleep: the music box plays alone

@@ -39,6 +39,16 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 
 
+@app.middleware("http")
+async def revalidate_static(request, call_next):
+    """Her pictures and scripts change while the booth runs: a plain reload must
+    fetch them anew (a 304 if unchanged), not keep a stale copy for hours."""
+    response = await call_next(request)
+    if not request.url.path.startswith("/api/"):
+        response.headers.setdefault("Cache-Control", "no-cache")
+    return response
+
+
 class Heard(BaseModel):
     question: str
     kid: bool = False

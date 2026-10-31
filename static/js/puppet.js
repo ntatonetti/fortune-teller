@@ -388,7 +388,7 @@ export class Puppet {
     this._vignette();
   }
 
-  // Her photograph as it is this tick. Asleep she is the same, only dimmed.
+  // Her photograph as it is this tick. Asleep she is dimmed, her eyes shut.
   _portraitNow(time) {
     const p = this.pose;
     if (this.mode === "head" && this.preview) return this.portrait.compose(Math.floor(time) % 2 ? this.timing.mouth_open ?? 3 : 0);

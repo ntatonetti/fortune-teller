@@ -156,7 +156,7 @@ _TIMINGS = {
     "BLINK_S": (0.17, "eyes shut per blink", (0.05, 0.6, 0.01)),
     "SLEEP_TALK": (0.2, "share of her sleep, with no one about, spent talking in it (0 = never)", (0, 1, 0.05)),
     "SLEEP_MUMBLE": (0.5, "share of that sleep talk muffled to an unintelligible murmur", (0, 1, 0.05)),
-    "WAKE_STARTLE": (0.35, "share of wakings where she snorts awake, dazed (0 = never)", (0, 1, 0.05)),
+    "WAKE_STARTLE": (0, "share of wakings where she snorts awake, dazed (0 = never)", (0, 1, 0.05)),
     "WAKE_DAZED_S": (1.6, "how long she looks around, dazed, after a startled waking", (0, 5, 0.1)),
     # her looks
     "LOOK_SIDE": (0.35, "how far off-centre her gaze must be (0-1) before her eyes turn to look that way", (0.05, 1, 0.05)),

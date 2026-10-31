@@ -171,7 +171,7 @@ HELP: dict[str, tuple[str, str]] = {
     ),
     "WAKE_STARTLE": (
         "The share of wakings where she snorts awake, startled and dazed, instead of waking calmly.",
-        "0.35: about one waking in three",
+        "0: she always wakes calmly",
     ),
     "WAKE_DAZED_S": (
         "After a startled waking, how long she looks around, dazed, before greeting.",
