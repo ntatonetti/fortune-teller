@@ -13,7 +13,7 @@ export const MARKS = { eyes: [{ x: 658, y: 213 }, { x: 729, y: 212 }], mouth: { 
 export const BALL = { x: 691, y: 587, r: 78 };
 export const FACE = { x: 693, y: 255, rx: 105, ry: 125 }; // forehead to dropped chin
 const EYES = { x: 693, y: 214, rx: 80, ry: 28 };
-const BROWS = { x: 693, y: 185, rx: 100, ry: 42 }; // brows and the eyes under them
+const BROWS = { x: 693, y: 182, rx: 100, ry: 16 }; // her brows only, raised or not, down to her lashes
 // Her eyes: each frame only differs from base.png there.
 export const EYE_FRAMES = ["blink", "eyes-half", "look-left", "look-right", "look-up", "look-down", "trance"];
 
@@ -78,8 +78,9 @@ export class Portrait {
     const c = this.canvas.getContext("2d");
     c.drawImage(this.base, 0, 0);
     if (this.mouths[mouth]) c.drawImage(this.mouths[mouth], 0, 0);
-    if (brows) c.drawImage(this.brows, 0, 0);
+    // Brows after eyes: an eye frame carries her brows unraised, which would show twice.
     if (eyes) c.drawImage(this.eyes[eyes], 0, 0);
+    if (brows) c.drawImage(this.brows, 0, 0);
     if (this.forehead) c.drawImage(this.forehead, 0, 0);
     return this.canvas;
   }
