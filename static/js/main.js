@@ -1,7 +1,7 @@
 // The show: a state machine that runs one reading at a time.
 //   sleep -> wake (looks at you) -> greet -> invite (gold coin or a whispered secret)
 //   -> ask (listens for their question) -> probe (asks one back: FOLLOW_UP)
-//   -> draw (three tarot cards, then a question about the first: TAROT)
+//   -> draw (three tarot cards, one after another: TAROT)
 //   -> consult -> speak (card by card) -> dispense -> farewell -> sleep
 
 import { Ears, wordCount } from "./ears.js";
@@ -26,7 +26,6 @@ const DEFAULTS = {
   near: 0.11, // face width (fraction of frame) that counts as "at the booth"
   button: true, // false = start the reading automatically after the invite
   listen: true, // hear secrets and questions through the mic
-  audience: "auto", // auto | adult | child (manual override)
   glitchRate: 0.2, // chance an adult reading has a mechanical seizure
   walkAwayS: 8, // no face for this long mid-reading = they left; she shuts down
 };
@@ -188,7 +187,8 @@ function clearHeard() {
   $("subtitle").classList.remove("show", "heard");
 }
 
-// Payment: a gold coin held up to the camera, the button, or a whispered secret.
+// Payment: a gold coin shown to the camera (or dropped in the cup), the button,
+// or, for grown-ups, a whispered secret.
 // Resolves "seen", "coin", "secret", or null if they walked away or timed out.
 function waitForPayment(timeoutMs) {
   let finish;
@@ -290,8 +290,8 @@ async function askQuestion(kid) {
 
 // A question she asks them back, written by Claude: {line, audio}, or null.
 function probe(kind) {
-  const { question, costume, kid, talk, cards } = reading;
-  const body = { kind, question, costume, kid, talk, cards: cards.map((c) => c.name), max_words: maxWords };
+  const { question, costume, kid, talk } = reading;
+  const body = { kind, question, costume, kid, talk, max_words: maxWords };
   return api("/api/probe", body).catch((e) => (console.warn(e), null));
 }
 
@@ -320,13 +320,10 @@ async function askBack(probeP, kid) {
 // Words that stop the cards: "stop!", "this one", "now"... Anything else (the
 // friends watching, chatting) lets them keep shuffling.
 const STOP_WORDS = /\b(stop\w*|halt|freeze|now|wait|pick|choose|yes|this one|that one|that's it|that's the one)\b/i;
-// After the first card, these end the drawing early ("that's enough for now").
-const ENOUGH_WORDS = /\b(enough|no more|that's all|that is all|i'm done|done|finished)\b/i;
 
 // Resolves how a card was chosen: "said" (they said stop), "press" (Space, for
-// the operator), "fate" (nobody chose in time), "gone" (they walked away) or,
-// when `canEnd`, "enough" (they want no more cards).
-function pickCard(canEnd) {
+// the operator), "fate" (nobody chose in time) or "gone" (they walked away).
+function pickCard() {
   const waitMs = listening() ? ms("draw_wait") : between(1500, 3500);
   return new Promise((resolve) => {
     let done = false;
@@ -344,8 +341,7 @@ function pickCard(canEnd) {
       else if (performance.now() - started > waitMs) finish("fate");
     }, 100);
     tokenWaiter = () => finish("press");
-    const stopped = (t) =>
-      canEnd && ENOUGH_WORDS.test(t) ? (finish("enough"), true) : STOP_WORDS.test(t) && (finish("said"), true);
+    const stopped = (t) => STOP_WORDS.test(t) && (finish("said"), true);
     (async () => {
       while (!done && listening()) {
         const t0 = performance.now();
@@ -357,10 +353,10 @@ function pickCard(canEnd) {
   });
 }
 
-// They draw up to CARDS cards (past, present, future...): the deck shuffles
-// through her ball, and the card showing when they say "stop" is theirs; after
-// the first, "enough" ends it. Then she turns the first one over and asks them
-// about it. Adults only.
+// They draw CARDS cards (past, present, future...) in quick succession: the
+// deck shuffles through her ball, the card showing when they say "stop" is
+// theirs, and it shuffles again for the next. She reads them all once they're
+// drawn. Adults only.
 async function drawCards() {
   const cards = deck;
   const places = server.spread || [];
@@ -376,31 +372,22 @@ async function drawCards() {
   for (const [i, place] of places.entries()) {
     puppet.deck = cards.filter((c) => !reading.cards.includes(c));
     puppet.shuffling = true;
-    setPrompt(i ? "✦ “stop” for another card · “enough” to end ✦" : "✦ say “stop” when a card calls to you ✦");
+    setPrompt(places.length > 1 ? `✦ say “stop” · card ${i + 1} of ${places.length} ✦` : "✦ say “stop” when a card calls to you ✦");
     sound.cue();
-    const how = await pickCard(i > 0);
+    await pickCard();
     stillHere();
     puppet.shuffling = false;
-    if (how === "enough") {
-      if (listening()) reading.aboutCard = probe("card");
-      await sayStock("cards_enough");
-      break;
-    }
     const card = puppet.deck.includes(puppet.card) ? puppet.card : puppet.deck[0];
     puppet.card = card;
     reading.cards.push(card);
-    setPrompt(`✦ ${card.name} ✦`);
+    setPrompt(`✦ ${place}: ${card.name} ✦`);
     sound.shimmer();
-    if (reading.cards.length === places.length && listening()) reading.aboutCard = probe("card"); // written while she names it
-    if (how === "fate") await sayStock("card_chooses");
-    await sayStock(`card_${place}`);
     await wait(ms("card_hold"));
     stillHere();
   }
   setPrompt("");
-  puppet.card = reading.cards[0]; // the first card, turned over again
+  puppet.card = null;
   puppet.set({ lidL: 1, lidR: 1 });
-  if (reading.aboutCard) await askBack(reading.aboutCard, false);
 }
 
 function onToken() {
@@ -511,8 +498,9 @@ async function runReading({ paid = false } = {}) {
     await sayStock("rewind");
     return sleepAgain();
   }
+  // AUDIENCE on the setup screen says who's coming, or "auto" for her to judge.
   let audience = greet?.audience && greet.audience !== "nobody" ? greet.audience : "child";
-  if (settings.audience !== "auto") audience = settings.audience;
+  if (server.audience && server.audience !== "auto") audience = server.audience;
   const kid = audience === "child" || audience === "mixed";
   const showFace = !kid || !!server.kid_flicker; // kids see their face in hers only with KID_FLICKER
   if (!showFace) puppet.guestFace = null;
@@ -528,13 +516,13 @@ async function runReading({ paid = false } = {}) {
   if (!paid) {
     state = "invite";
     const coin = T.coin_look_every > 0 ? "show me a gold coin" : "a gold coin";
-    setPrompt(listening() ? `✦ ${coin}… or a secret ✦` : `✦ ${coin} ✦`);
+    setPrompt(listening() && !kid ? `✦ ${coin}… or a secret ✦` : `✦ ${coin} ✦`);
     const payment = waitForPayment(ms("pay_timeout"));
     payment.then((v) => v && speaking?.stop()); // paying mid-sentence cuts her off
     payment.watchForCoin(); // eager kids hold it up before she's done asking
     await sayStock(kid ? "invite_child" : "invite_adult");
     if (!settings.button && !listening()) tokenWaiter?.();
-    payment.listenForSecret();
+    if (!kid) payment.listenForSecret(); // kids pay with a coin, never a secret
     const paidWith = await payment;
     setPrompt("");
     clearHeard();
@@ -546,7 +534,7 @@ async function runReading({ paid = false } = {}) {
 
   if (reading.paidWith === "secret") {
     sound.shimmer();
-    await sayStock(kid ? "secret_child" : "secret_adult");
+    await sayStock("secret_adult");
   } else if (seen) {
     // She saw it; they drop it in the cup themselves, and she hears it land.
     await sayStock(kid ? "coin_seen_child" : "coin_seen_adult");
@@ -804,7 +792,7 @@ function drawDebug() {
   $("debugText").textContent = [
     `state: ${state}`,
     `face: ${n ? `w=${n.w.toFixed(3)} (near ≥ ${settings.near}) · turn=${(n.turn ?? 0).toFixed(2)}${watcher.lookingAway ? " AWAY" : ""}` : "none"}`,
-    `audience: ${reading?.audience || "-"} ${settings.audience !== "auto" ? `(forced ${settings.audience})` : ""}`,
+    `audience: ${reading?.audience || "-"} ${server.audience && server.audience !== "auto" ? `(AUDIENCE=${server.audience})` : ""}`,
     `ears: ${!ears.supported ? "unsupported in this browser" : ears.failed ? `failed (${ears.failed})` : settings.listen ? (ears.listening ? "LISTENING" : "on") : "off"} · paid: ${reading?.paidWith || "-"}`,
     `question: ${reading?.question || "-"}`,
     `talk: ${reading?.talk.length ?? "-"} · cards: ${reading?.cards.map((c) => c.name).join(", ") || "-"}`,
@@ -877,11 +865,16 @@ const KEYS = {
     forceGlitch = true;
     toast("Next adult reading will glitch");
   },
-  a: () => {
+  a: async () => {
     const order = ["auto", "adult", "child"];
-    settings.audience = order[(order.indexOf(settings.audience) + 1) % order.length];
-    save();
-    toast(`Audience: ${settings.audience}`);
+    const next = order[(order.indexOf(server.audience) + 1) % order.length];
+    try {
+      server = await api("/api/settings", { values: { AUDIENCE: next } });
+      applyServer();
+      toast(`Audience: ${{ auto: "she judges each guest", adult: "grown-ups only", child: "kids only" }[next]}`);
+    } catch {
+      toast("Couldn't change the audience");
+    }
   },
   j: () => adjustWalkAway(-1),
   k: () => adjustWalkAway(1),
@@ -896,7 +889,7 @@ const KEYS = {
 function typeForGuest() {
   if (!ears.listening) return toast("She isn't listening right now");
   // window.prompt blocks; the listen's own timers resume when it closes.
-  const what = { invite: "the guest's secret (it is not saved)", probe: "the guest's answer", draw: "anything, to stop the card" }[state] || "the guest's question";
+  const what = { invite: "the guest's secret (it is not saved)", probe: "the guest's answer", draw: "“stop”, to stop the card" }[state] || "the guest's question";
   const text = window.prompt(`Type ${what}:`);
   if (text) ears.inject(text);
 }
@@ -1284,7 +1277,7 @@ window.oracleState = () => state; // for scripts/smoke.py
 window.oracleHear = (text) => ears.inject(text); // ditto: stands in for the mic
 window.oracleListening = () => ears.listening;
 window.oracleChoosing = () => state === "draw" && !!tokenWaiter; // cards shuffling, waiting for a press
-window.oracleReading = () => reading && { ...reading, cards: reading.cards.map((c) => c.name), fortune: undefined, followUp: undefined, aboutCard: undefined };
+window.oracleReading = () => reading && { ...reading, cards: reading.cards.map((c) => c.name), fortune: undefined, followUp: undefined };
 window.oracleFakeFace = (f) => (watcher.fake = f); // a face for tests; undefined = real camera
 window.oracleSound = () => sound; // for poking effects from DevTools
 applyMirror();

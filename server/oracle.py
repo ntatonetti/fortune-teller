@@ -98,7 +98,7 @@ def _tarot_schema(places: list[str]) -> dict:
             **{
                 place: {
                     "type": "string",
-                    "description": f"Spoken aloud as you turn over the card of their {place.upper()}: name the card and read it for them, tied to their question and what they told you. ADULT: 20-40 words. CHILD: 12-25 words.",
+                    "description": f"Spoken aloud as you turn over the card of their {place.upper()}: say it is their {place}, name the card, and read it with flair: a playful, theatrical reveal with one vivid image and a wink or a twist, tied to their question and what they told you. Each card's reading opens differently. ADULT: 20-40 words. CHILD: 12-25 words.",
                 }
                 for place in places
             },
@@ -145,14 +145,16 @@ ASKED_SCHEMA = {
 }
 
 COIN_SYSTEM = """\
-You are the eyes of a fortune-teller booth at a Halloween party. The fortune teller has asked the guest to pay by holding a gold coin up to the glass so she can see it. Look at this camera frame and decide whether someone is showing her a coin.
+You are the eyes of a fortune-teller booth at a Halloween party. The fortune teller has asked the guest to pay with a gold coin: show it to her through the glass, then drop it in the cup in front of the booth. Look at this camera frame and decide whether they are paying. Be generous: a free fortune now and then does no harm, but a guest left waiting with their coin does.
 
-Yes: a coin or coin-like token is visible in someone's hand or fingers: a plastic pirate doubloon, a chocolate coin in gold foil, a real coin, a poker chip. Small, blurry or half-hidden by fingers still counts if it is plausibly a coin.
-No: no coin in anyone's hand; a coin only printed on a costume or worn as jewelry; an empty hand held up."""
+Yes, either of:
+- a coin or coin-like token in someone's hand or fingers: a plastic pirate doubloon, a chocolate coin in gold foil, a real coin, a poker chip. Small, blurry or half-hidden by fingers still counts.
+- someone reaching forward toward the booth, arm stretched out or hand low at the front as if dropping something in, even if no coin is visible.
+No: hands down, at their sides or holding props, nobody reaching toward the booth; a coin only printed on a costume or worn as jewelry."""
 
 COIN_SCHEMA = {
     "type": "object",
-    "properties": {"coin": {"type": "boolean", "description": "True if someone is holding up a coin or coin-like token."}},
+    "properties": {"coin": {"type": "boolean", "description": "True if someone is showing a coin or coin-like token, or reaching forward as if to drop one in."}},
     "required": ["coin"],
     "additionalProperties": False,
 }
@@ -261,6 +263,15 @@ def _avoid(label: str, lines) -> str:
     return f"\n\n{label}. Do not reuse their openings, phrasing, imagery, or ideas; sound fresh:\n{listed}"
 
 
+def _who() -> str:
+    """Whether she judges child or adult herself, or has been told (AUDIENCE)."""
+    if config.AUDIENCE == "child":
+        return "Everyone tonight is a child: use CHILD mode and say \"child\" for anyone you see."
+    if config.AUDIENCE == "adult":
+        return "Everyone tonight is a grown-up: use ADULT mode and say \"adult\" for anyone you see."
+    return "Pick ADULT or CHILD mode from what you see."
+
+
 async def greet(jpeg_b64: str, max_words: int = 0) -> Greeting | None:
     data = await _ask(
         GREET_SCHEMA,
@@ -270,7 +281,8 @@ async def greet(jpeg_b64: str, max_words: int = 0) -> Greeting | None:
             _image_block(jpeg_b64),
             {
                 "type": "text",
-                "text": "Someone is approaching your booth and you are stirring awake. Look through the glass: who is there, and how do you greet them? Pick ADULT or CHILD mode from what you see."
+                "text": "Someone is approaching your booth and you are stirring awake. Look through the glass: who is there, and how do you greet them? "
+                + _who()
                 + _avoid("Greetings you already used tonight", variety.recent_greetings)
                 + phrases.for_greeting()
                 + _brief("greeting", max_words),
@@ -282,6 +294,8 @@ async def greet(jpeg_b64: str, max_words: int = 0) -> Greeting | None:
     if data:
         try:
             g = Greeting(**data)
+            if g.audience != "nobody" and config.AUDIENCE != "auto":
+                g.audience = config.AUDIENCE
             if g.audience != "nobody":
                 variety.recent_greetings.append(g.greeting)
         except ValidationError as e:
@@ -311,12 +325,13 @@ async def asked(question: str, kid: bool, prompt: str = "") -> bool | None:
 
 
 async def coin_shown(jpeg_b64: str) -> bool | None:
-    """Whether someone in the frame is holding up a coin (None if Claude is unavailable)."""
+    """Whether someone in the frame is paying: showing a coin, or reaching forward to drop
+    one in (None if Claude is unavailable)."""
     data = await _ask(
         COIN_SCHEMA,
         "low",
         1000,
-        [_image_block(jpeg_b64), {"type": "text", "text": "Is someone holding up a coin?"}],
+        [_image_block(jpeg_b64), {"type": "text", "text": "Is someone showing a coin, or reaching forward to drop one in?"}],
         timeout=5,  # she asks again a moment later anyway
         model=config.COIN_MODEL,
         system=COIN_SYSTEM,
@@ -355,17 +370,11 @@ PROBES = {
         " (\"Is this a matter of the heart... or of coin?\"). In CHILD mode, something fun and easy for a child to answer"
         " (a favourite animal, the bravest thing they ever did, a wish). Do not answer their question or tell their fortune yet."
     ),
-    "card": (
-        "Turn over the first card, their PAST, and ask them one question about it: name the card, say in a few words what it"
-        " means for their past, and ask about something in their life the card hints at (\"The Tower... something in your"
-        " life has already cracked, hasn't it? What was it?\"). In CHILD mode keep it warm and fun. Do not read the other cards yet."
-    ),
 }
 
 
 async def probe(
-    kind: str, question: str, costume: str, kid: bool, talk: list[dict] | None = None,
-    cards: list[str] | None = None, max_words: int = 0,
+    kind: str, question: str, costume: str, kid: bool, talk: list[dict] | None = None, max_words: int = 0,
 ) -> str | None:
     """A question she asks them back, mid-reading (None if Claude is unavailable)."""
     question = question.strip()[:500]
@@ -375,7 +384,6 @@ async def probe(
         else "They did not ask a question out loud; they keep it in their heart."
     )
     so_far = f"\n\nYou have already asked them:\n{_talk(talk)}" if talk else ""
-    drew = f"\n\nThese are {_drew(cards)}." if cards else ""
     data = await _ask(
         PROBE_SCHEMA,
         "low",
@@ -384,7 +392,7 @@ async def probe(
             "type": "text",
             "text": (
                 f"{'CHILD' if kid else 'ADULT'} mode. Earlier you noticed: {costume or 'unknown'}. They have paid.\n\n{asked}"
-                f"{so_far}{drew}\n\n{PROBES[kind]}{_brief('line', max_words)}"
+                f"{so_far}\n\n{PROBES[kind]}{_brief('line', max_words)}"
             ),
         }],
         timeout=config.ASKED_TIMEOUT_S + 4,
@@ -406,6 +414,8 @@ async def fortune(
     cards: list[str] | None = None,
 ) -> Fortune | None:
     question = question.strip()[:500]
+    if config.AUDIENCE != "auto":
+        audience_hint = config.AUDIENCE
     kid = is_childlike(audience_hint)
     cards = spread(cards or [], kid)
     lucky = variety.pick_lucky([g["lucky"] for g in recent_guests if isinstance(g.get("lucky"), int)])
@@ -423,7 +433,9 @@ async def fortune(
             f" one of them, e.g. an omen or task involving them. In CHILD mode only mention them kindly, or not at all:\n{lines}"
         )
     child_note = ""
-    if is_childlike(audience_hint):
+    if config.AUDIENCE == "adult":
+        child_note = "\n\nEveryone tonight is a grown-up. Use ADULT mode no matter what."
+    elif is_childlike(audience_hint):
         child_note = "\n\nWhen they first approached you saw a child. Use CHILD mode no matter what."
     # The secret itself is never sent anywhere, only the fact that they paid with one.
     payment = {
@@ -466,7 +478,9 @@ async def fortune(
             result = Fortune(**data, question=question, cards=cards,
                              readings=[data.get(place, "") for place in places])
             # Stay on the cautious side: once a child was seen, it is a child reading.
-            if is_childlike(audience_hint) and not is_childlike(result.audience):
+            if config.AUDIENCE != "auto":
+                result.audience = config.AUDIENCE
+            elif is_childlike(audience_hint) and not is_childlike(result.audience):
                 result.audience = audience_hint
         except ValidationError as e:
             log.warning("Bad fortune shape: %s", e)

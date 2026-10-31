@@ -83,12 +83,13 @@ FORTUNE_TIMEOUT_S = _setting("FORTUNE_TIMEOUT_S", 20, "gives up on the fortune a
 ASKED_MODEL = _setting("ASKED_MODEL", "claude-haiku-5-5", "judges whether a guest has finished asking", str, MODELS)
 ASKED_TIMEOUT_S = _setting("ASKED_TIMEOUT_S", 4, "gives up on that judgement after this", span=[1, 15, 0.5])
 CHAT_MODEL = _setting("CHAT_MODEL", "claude-haiku-5-5", "writes the questions she asks them back, mid-reading", str, MODELS)
-COIN_MODEL = _setting("COIN_MODEL", "claude-haiku-5-5", "looks for the gold coin they hold up to the glass", str, MODELS)
+COIN_MODEL = _setting("COIN_MODEL", "claude-haiku-5-5", "watches for the coin they show her or drop in the cup", str, MODELS)
 
 _section = "The conversation"
+AUDIENCE = _setting("AUDIENCE", "auto", "who she reads for: auto (she judges each guest from the camera), child or adult (everyone, no guessing)", str, ["auto", "child", "adult"])
 FOLLOW_UP = _setting("FOLLOW_UP", True, "adults: after their question, she asks them one back", bool)
-TAROT = _setting("TAROT", True, "adults: they draw tarot cards in her ball; she asks about the first, then reads them one by one", bool)
-CARDS = _setting("CARDS", 3, "adults: the most tarot cards they draw; they can say \"enough\" sooner", int, span=[1, 5, 1])
+TAROT = _setting("TAROT", True, "adults: they stop CARDS tarot cards in her ball, one after another, then she reads them one by one", bool)
+CARDS = _setting("CARDS", 3, "adults: how many tarot cards they draw (3: past, present, future)", int, span=[1, 5, 1])
 
 # Voice
 _section = "Her voice"
@@ -164,7 +165,7 @@ _TIMINGS = {
     # paying
     "PAY_TIMEOUT_S": (40, "no coin or secret by then: she goes back to sleep", (5, 120, 5)),
     "SECRET_LISTEN_S": (12, "each stretch of listening for a whispered secret", (3, 30, 1)),
-    "COIN_LOOK_EVERY_S": (1.5, "waiting for payment, how often she looks for a coin held up to the glass (0 = never: the button pays)", (0, 5, 0.25)),
+    "COIN_LOOK_EVERY_S": (1.5, "waiting for payment, how often she looks for a coin shown or dropped in the cup (0 = never: the button pays)", (0, 5, 0.25)),
     "COIN_CUP_S": (2.5, "after she sees their coin, time to drop it in the cup before she asks their question", (0, 6, 0.5)),
     "COIN_PAUSE_S": (0.8, "after the button is pressed, before she asks their question", (0, 3, 0.1)),
     # their question
@@ -177,9 +178,9 @@ _TIMINGS = {
     "QUESTION_MORE_S": (6, "added if Claude says the question isn't finished", (0, 15, 0.5)),
     "HEARD_SHOW_S": (0.6, "their question stays on screen this long before she answers", (0, 3, 0.1)),
     # drawing the cards
-    "DRAW_WAIT_S": (12, "no press or word by then: the card showing picks itself", (2, 40, 1)),
+    "DRAW_WAIT_S": (12, "nobody says stop by then: the card showing is theirs", (2, 40, 1)),
     "CARD_SHUFFLE_S": (0.42, "each card shows this long as they shuffle through her ball", (0.1, 2, 0.02)),
-    "CARD_HOLD_S": (0.8, "a chosen card stays in the ball this long after she names its place", (0, 4, 0.1)),
+    "CARD_HOLD_S": (0.8, "a chosen card stays in the ball this long before the next shuffles", (0, 4, 0.1)),
     # consulting, the fortune, the ticket
     "CONSULT_MIN_S": (3.5, "shortest consult, even if the fortune comes back sooner", (0, 15, 0.5)),
     "GLIMPSE_MIN_S": (0.33, "shortest glimpse of their face", (0.05, 2, 0.01)),

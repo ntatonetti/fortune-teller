@@ -26,27 +26,23 @@ STOCK_LINES: dict[str, list[str]] = {
         "The gears do not turn for free. Hold a gold coin up where I can see it... or whisper a secret, close. Your choice.",
     ],
     "invite_child": [
-        "Do you have a golden pirate coin, little one? Hold it up to the glass so I can see it! Or... tell me a secret, and I'll keep it safe.",
-        "Every fortune costs one golden coin! Show it to me, up high... or tell me a secret instead.",
+        "Do you have a golden pirate coin, little one? Show it to me through the glass... then pop it in the cup!",
+        "Every fortune costs one golden coin! Hold it up so I can see it shine... then drop it in the cup.",
     ],
-    # She saw the coin they held up: into the cup with it.
+    # She saw the coin, held up or on its way into the cup.
     "coin_seen_adult": [
-        "Ahh... real pirate gold. Into the cup with it.",
-        "I see it gleaming. Drop it in the cup, darling... the fates are paid.",
+        "Ahh... real pirate gold. Into the cup it goes.",
+        "I saw it gleam, darling. Into the cup... the fates are paid.",
         "Gold... how it shines. Into the cup, and we may begin.",
     ],
     "coin_seen_child": [
-        "Ooh, what a shiny coin! Pop it in the cup for me.",
-        "I see it! Real pirate gold! Drop it in the cup, little one.",
+        "Ooh, what a shiny coin! Into the cup it goes!",
+        "I saw it! Real pirate gold! Into the cup, little one.",
     ],
     "secret_adult": [
         "Mmm... a delicious secret. It is safe with the gears... for now.",
         "Ohh... I shall treasure that one. The gears will never tell.",
         "A secret worth its weight in gold. Paid in full.",
-    ],
-    "secret_child": [
-        "Ooh, what a wonderful secret! I'll lock it away in my music box.",
-        "What a fantastic secret! It's safe with me, I promise.",
     ],
     "ask_adult": [
         "Now... ask the fates your question. Speak it into the glass.",
@@ -94,20 +90,13 @@ STOCK_LINES: dict[str, list[str]] = {
     ],
     # The tarot draw: cards shuffle through her ball until they choose.
     "draw_adult": [
-        "Now... the cards. Your past, your present, your future. Watch the glass... and when a card calls to you, say stop. Seen enough? Say enough.",
-        "The deck is restless tonight. What was, what is, what will be... When one calls your name, tell it to stop. And when you have seen enough... say so.",
+        "Now... the cards. Your past, your present, your future. Watch the glass... and each time a card calls to you, say stop.",
+        "The deck is restless tonight. What was, what is, what will be... Say stop, and stop, and stop again, as the cards call your name.",
     ],
     "draw_one": [  # CARDS=1
         "Now... one card. Watch the glass... and when it calls to you, say stop.",
         "The deck is restless tonight. One card for you... When it calls your name, tell it to stop.",
     ],
-    "card_past": ["Your past...", "This one... the past.", "The past..."],
-    "card_present": ["Your present...", "And now... the present.", "The present..."],
-    "card_future": ["And your future...", "And this one... the future.", "The future..."],
-    "card_obstacle": ["What stands in your way...", "And this one... what blocks your path."],
-    "card_outcome": ["And where it all leads...", "Last of all... where it ends."],
-    "cards_enough": ["Enough, then. The cards have spoken.", "As you wish... these will do."],
-    "card_chooses": ["Hmm... this one chooses you.", "The card has chosen for you."],
     "consult_adult": [
         "Hmm... the gears are turning... the glass grows cloudy...",
         "The mist is stirring... I see shapes... shadows...",

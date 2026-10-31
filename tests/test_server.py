@@ -120,6 +120,38 @@ def test_child_seen_at_greeting_stays_child(monkeypatch):
     assert f.audience == "child"
 
 
+
+def test_audience_setting_overrides_what_she_sees(monkeypatch):
+    seen = {}
+
+    async def fake_ask(schema, effort, max_tokens, content, timeout):
+        seen["text"] = content[1]["text"]
+        if schema is oracle.GREET_SCHEMA:
+            return {"audience": seen.get("says", "child"), "group_size": 1, "costume": "a ghost", "greeting": "Boo..."}
+        return {"audience": "child", "group_size": 1, "costume": "a ghost", "spoken": "Boo.", "card_title": "Boo",
+                "card_text": "Boo.", "lucky_number": 3, "task": "Hide.", "gist": "boo"}
+
+    monkeypatch.setattr(oracle, "_ask", fake_ask)
+    monkeypatch.setattr(oracle.config, "AUDIENCE", "adult")
+    assert asyncio.run(oracle.greet("x" * 200)).audience == "adult"
+    assert "Everyone tonight is a grown-up" in seen["text"]
+    f = asyncio.run(oracle.fortune("x" * 200, "child", "a ghost", []))
+    assert f.audience == "adult" and "Use ADULT mode no matter what" in seen["text"]
+
+    monkeypatch.setattr(oracle.config, "AUDIENCE", "child")
+    seen["says"] = "adult"
+    assert asyncio.run(oracle.greet("x" * 200)).audience == "child"
+    assert "Everyone tonight is a child" in seen["text"]
+    seen["says"] = "nobody"  # an empty booth is still empty
+    assert asyncio.run(oracle.greet("x" * 200)).audience == "nobody"
+    assert asyncio.run(oracle.fortune("x" * 200, "adult", "a ghost", [])).audience == "child"
+    assert "Use CHILD mode no matter what" in seen["text"]
+
+    monkeypatch.setattr(oracle.config, "AUDIENCE", "auto")
+    seen["says"] = "adult"
+    assert asyncio.run(oracle.greet("x" * 200)).audience == "adult"
+    assert "Pick ADULT or CHILD mode" in seen["text"]
+
 def test_prompt_includes_child_note_and_memory(monkeypatch):
     seen = {}
 
@@ -598,15 +630,7 @@ def test_she_asks_back_with_what_they_said(monkeypatch):
         assert "<question>Will I be rich?</question>" in seen["text"] and "ADULT mode" in seen["text"]
         assert "a pirate" in seen["text"] and "ONE question back" in seen["text"]
 
-        talk = [{"she": "Heart or coin?", "guest": "coin, obviously"}]
-        cards = ["The Tower", "The Star", "The Sun"]
-        client.post("/api/probe", json={"kind": "card", "question": "Will I be rich?", "talk": talk, "cards": cards})
-        assert "<answer>coin, obviously</answer>" in seen["text"]
-        assert "past: The Tower, present: The Star, future: The Sun" in seen["text"] and "their PAST" in seen["text"]
-
-        # kids don't draw cards, and a card question needs a real spread
-        bad = client.post("/api/probe", json={"kind": "card", "kid": True, "cards": cards})
-        assert bad.status_code == 400
+        assert client.post("/api/probe", json={"kind": "card"}).status_code == 400  # no more questions about a card
         assert client.post("/api/probe", json={"kind": "riddle"}).status_code == 400
 
 
@@ -641,7 +665,7 @@ def test_tarot_fortune_is_read_card_by_card(monkeypatch):
     assert f.cards == ["The Tower", "The Star", "The Sun"]
     assert f.readings == ["The Tower... it fell.", "The Star... hope.", "The Sun... gold."]
 
-    # they said "enough" after two cards: just those two are read
+    # CARDS=2: just two are read
     f = asyncio.run(oracle.fortune("x" * 200, "adult", "a pirate", [], cards=["The Tower", "The Star"]))
     assert seen["schema"] is oracle.TAROT_SCHEMAS[2] and "future" not in seen["schema"]["required"]
     assert "the 2 tarot cards they drew (past: The Tower, present: The Star)" in seen["text"]

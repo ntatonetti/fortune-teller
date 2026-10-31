@@ -51,12 +51,11 @@ class Talk(BaseModel):
 
 
 class Probe(BaseModel):
-    kind: str  # "followup" (after their question) | "card" (about the first card they drew)
+    kind: str  # "followup" (after their question)
     question: str = ""
     costume: str = ""
     kid: bool = False
     talk: list[Talk] = []
-    cards: list[str] = []
     max_words: int = 0
 
 
@@ -94,6 +93,7 @@ async def get_config():
         "timings": config.TIMINGS,
         "follow_up": config.FOLLOW_UP,
         "tarot": config.TAROT,
+        "audience": config.AUDIENCE,
         "spread": variety.SPREAD[:config.CARDS],  # the places of the cards they may draw
         "deck": {
             "adult": [{"name": n, "img": variety.card_image(n)} for n in variety.TAROT],
@@ -185,7 +185,7 @@ async def greet(frame: Frame):
 
 @app.post("/api/coin")
 async def coin(frame: Frame):
-    """Whether they're holding a coin up to the glass, to pay."""
+    """Whether they're paying: a coin shown at the glass, or a reach to drop one in."""
     shown = await oracle.coin_shown(_b64(frame.image))
     if shown is None:
         raise HTTPException(503, "Claude unavailable")
@@ -209,11 +209,7 @@ async def probe(p: Probe):
     """A question she asks them back, and her voice saying it."""
     if p.kind not in oracle.PROBES:
         raise HTTPException(400, f"no such question: {p.kind}")
-    cards = oracle.spread(p.cards, p.kid)
-    if p.kind == "card" and not cards:
-        raise HTTPException(400, "a card question needs the spread they drew")
-    line = await oracle.probe(p.kind, p.question, p.costume, p.kid, [t.model_dump() for t in p.talk], cards,
-                              max_words=p.max_words)
+    line = await oracle.probe(p.kind, p.question, p.costume, p.kid, [t.model_dump() for t in p.talk], max_words=p.max_words)
     if line is None:
         raise HTTPException(503, "Claude unavailable")
     log.info("probe: %s, %d words", p.kind, len(line.split()))

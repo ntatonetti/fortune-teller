@@ -20,7 +20,7 @@ TAROT = [
 TAROT_FOR_KIDS = ["The Fool", "The Magician", "The Empress", "The Chariot", "Strength", "Wheel of Fortune", "The Star", "The Moon", "The Sun", "The World"]
 # Where the guest draws from (TAROT in .env), and where each card's picture is:
 # the 1909 Rider-Waite-Smith scans, public domain, in static/img/tarot/.
-# Each card drawn, in order: as many as CARDS lets them (they can say "enough" sooner).
+# Each card drawn, in order: CARDS of them.
 SPREAD = ["past", "present", "future", "obstacle", "outcome"]
 
 

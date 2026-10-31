@@ -37,11 +37,11 @@ HELP: dict[str, tuple[str, str]] = {
         "4: she never waits more than 4 s on it",
     ),
     "COIN_MODEL": (
-        "While she waits for payment, this Claude model looks at the camera every COIN_LOOK_EVERY_S seconds and says whether someone is holding up a coin. It runs many times per guest, so it should be small and fast.",
+        "While she waits for payment, this Claude model looks at the camera every COIN_LOOK_EVERY_S seconds and says whether they're paying: a coin shown at the glass, or someone reaching forward as if dropping one in the cup (it errs on the generous side). It runs many times per guest, so it should be small and fast.",
         "claude-haiku-5-5: about 2 s a look, roughly a hundredth of a cent each",
     ),
     "CHAT_MODEL": (
-        "The Claude model that writes the questions she asks them back: one after their question, and one about the first tarot card they draw. It only reads the words (no camera frame), and the guest is waiting on it, so a fast model keeps the talk flowing.",
+        "The Claude model that writes the questions she asks them back: the one after their question. It only reads the words (no camera frame), and the guest is waiting on it, so a fast model keeps the talk flowing.",
         "claude-haiku-5-5 for a quick reply; claude-opus-5-5 for sharper questions, a second or two slower",
     ),
     # The conversation
@@ -49,12 +49,16 @@ HELP: dict[str, tuple[str, str]] = {
         "A conversation reading, for adults: after their question she asks one back, to draw them out (\"Is this a matter of the heart... or of coin?\"). She listens to the answer as patiently as to the question, and the fortune uses it. With TAROT also on, each adult reading is one or the other, at random. Kids just pay and ask their question. Needs listening on (L).",
         "true; false for a shorter reading with no back-and-forth",
     ),
+    "AUDIENCE": (
+        "Whether she judges each guest herself or is told. auto: she looks through the camera and picks a child's or a grown-up's reading (unsure means child). child: every guest gets the child's reading, gentle and whimsical, no cards, no secrets. adult: every guest gets the grown-up's reading, spooky and PG-13, whoever is in front of her, so use it only when no kids are around. A at the booth cycles it too.",
+        "child for the kids' hour; adult once the kids are in bed; auto when it's a mix",
+    ),
     "TAROT": (
-        "Before she consults, the guest draws up to CARDS cards (three by default: their past, present and future): cards shuffle through her crystal ball, and the one showing when they say \"stop\" (or \"this one\", \"now\"...) is theirs. She turns the first one over and asks them about it, then reads the fortune card by card, each card back in her ball as she speaks of it. The cards print on the ticket. Adults only: kids just pay and ask their question. With FOLLOW_UP also on, each adult reading is one or the other, at random. Off, she reads from a random omen as before.",
+        "Before she consults, the guest draws CARDS cards (three by default: their past, present and future) in quick succession: cards shuffle through her crystal ball, the one showing when they say \"stop\" (or \"this one\", \"now\"...) is theirs, and the deck shuffles again for the next. Once all are drawn she reads the fortune card by card, each card back in her ball as she speaks of it. The cards print on the ticket. Adults only: kids just pay and ask their question. With FOLLOW_UP also on, each adult reading is one or the other, at random. Off, she reads from a random omen as before.",
         "true; false for her old single fortune",
     ),
     "CARDS": (
-        "The most tarot cards an adult draws: their past, present and future at 3, then what stands in their way and where it all leads at 4 and 5. After the first card they can say \"enough\" (or \"no more\", \"that's all\", \"done\") to stop drawing, and she reads just the cards they drew.",
+        "How many tarot cards an adult draws, one after another: their past, present and future at 3, then what stands in their way and where it all leads at 4 and 5.",
         "3; 1 for a single card and a quicker reading",
     ),
     # Her voice
@@ -188,19 +192,19 @@ HELP: dict[str, tuple[str, str]] = {
     ),
     # Paying
     "PAY_TIMEOUT_S": (
-        "After asking for payment (a gold coin held up to the glass, a whispered secret, or the button), how long she waits before giving up and going back to sleep.",
+        "After asking for payment (a gold coin shown at the glass or dropped in the cup, a whispered secret from grown-ups, or the button), how long she waits before giving up and going back to sleep.",
         "40",
     ),
     "SECRET_LISTEN_S": (
-        "How long each stretch of listening for a whispered secret lasts. Anything the mic hears counts as a secret. The words never leave the browser.",
+        "How long each stretch of listening for a whispered secret lasts. Grown-ups only: kids pay with a coin. Anything the mic hears counts as a secret. The words never leave the browser.",
         "12",
     ),
     "COIN_LOOK_EVERY_S": (
-        "While she waits for payment, how often she shows the camera to COIN_MODEL to see whether they're holding up a coin. Lower spots the coin sooner but makes more Claude calls. 0 turns it off: then only the button (or Space) pays.",
+        "While she waits for payment, how often she shows the camera to COIN_MODEL to see whether they're showing a coin or reaching forward to drop one in. Lower spots the coin sooner but makes more Claude calls. 0 turns it off: then only the button (or Space) pays.",
         "1.5: each look takes Claude about 2 s, so she notices a coin within 2 to 4 s",
     ),
     "COIN_CUP_S": (
-        "Once she has seen their coin and told them to drop it in the cup, how long she waits for them to do it before she hears it land and asks for their question.",
+        "Once she has seen their coin (held up, or on its way into the cup), how long she waits for it to land before the clink and their question.",
         "2.5; raise it if the cup is a step or two away from the glass",
     ),
     "COIN_PAUSE_S": (
@@ -242,7 +246,7 @@ HELP: dict[str, tuple[str, str]] = {
     ),
     # Consulting, the fortune, the ticket
     "DRAW_WAIT_S": (
-        "How long each card shuffles waiting for the guest to choose. If nobody presses or speaks by then, the card showing picks itself (\"this one chooses you\").",
+        "How long each card shuffles waiting for the guest to say \"stop\". If nobody does by then, the card showing becomes theirs and the next one starts shuffling.",
         "12; 6 if guests tend to stand there frozen",
     ),
     "CARD_SHUFFLE_S": (
@@ -250,8 +254,8 @@ HELP: dict[str, tuple[str, str]] = {
         "0.42; 0.8 to let them really choose",
     ),
     "CARD_HOLD_S": (
-        "After a card is chosen and she names its place (\"the past...\"), it stays in her ball this long before the next shuffle starts.",
-        "0.8",
+        "After a card is chosen it stays in her ball this long, with its place and name on screen (\"past: The Tower\"), before the deck shuffles for the next. Short keeps the three picks in quick succession; she reads the cards properly once all are drawn.",
+        "0.8: stop, stop, stop in about as many seconds as they take to say it; 2 to let everyone see each card",
     ),
     "CONSULT_MIN_S": (
         "The shortest she consults her ball, even if the fortune is already back, so the reveal never feels instant.",
