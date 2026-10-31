@@ -217,7 +217,7 @@ HELP: dict[str, tuple[str, str]] = {
     ),
     "WALK_AWAY_S": (
         "Mid-reading, if the camera sees no face for this long (and nobody speaks or presses the button), she decides they've left: she stops, grumbles and goes back to sleep. Guests lose the camera more than you'd think: leaning in close to whisper a secret, looking down, turning to a friend, a mask or hat brim. Too short and she gives up on people who are still there. Once she is telling the fortune it never applies.",
-        "20; 30 if she still thinks people have left when they haven't, 0 to turn it off",
+        "12; 20 or 30 if she still thinks people have left when they haven't, 0 to turn it off",
     ),
     "COIN_PAUSE_S": (
         "After the button (or Space) is pressed instead, a beat before she asks for their question.",
