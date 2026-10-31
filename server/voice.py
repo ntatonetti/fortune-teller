@@ -20,29 +20,30 @@ ELEVEN_URL = "https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
 # Lines that don't depend on the guest, in a few wordings each so the people
 # waiting in line don't hear the same script twice. Pre-rendered at startup.
 STOCK_LINES: dict[str, list[str]] = {
-    # Before payment, she has them sit (unless they already have).
+    # Before payment, she has them sit (unless they already have). Short: it
+    # mustn't hold up the line.
     "sit_child": [
-        "Sit down, little one... right there on the chair, so we can see each other.",
-        "Hop up on the chair, little one! Fortunes are best told sitting down.",
-        "Find a seat, little one! Fortunes get all wobbly if you stand.",
-        "Quick, sit down! The chair has been lonely all night... it's starting to sniffle.",
+        "Sit down, little one!",
+        "Hop up on the chair, little one!",
+        "Find a seat, little one!",
+        "Quick, sit! The chair is lonely.",
     ],
     "sit_adult": [
-        "Sit, sit... take the chair, darling. The cards prefer you comfortable.",
-        "Please... be seated. The fates do not read for those who hover.",
-        "Come... sit before the glass. Closer. There.",
-        "Take a seat, darling. Destiny is a long story.",
-        "Do sit. The chair is haunted, but only a little... and it's very polite.",
-        "Sit down, before the fates notice you're taller than they are. They hate that.",
+        "Sit, darling. Take the chair.",
+        "Please... be seated.",
+        "Come. Sit before the glass.",
+        "Take a seat, darling.",
+        "Sit! The chair is haunted, but polite.",
+        "Sit. You're taller than the fates like.",
     ],
     # They didn't sit: fine, on with it (kids hear these too).
     "sit_refused": [
-        "Fine... don't sit down. Stand there like a lamppost.",
-        "Very well, stay standing. The spirits will crane their necks.",
-        "No? Suit yourself. Standing fortunes it is.",
-        "Fine! The chair is offended, but I am not.",
-        "Ah, a stander. Bold. Let us carry on.",
-        "Don't sit, then. I'll tell the chair it wasn't personal.",
+        "Fine... don't sit down.",
+        "Stand, then. Like a lamppost.",
+        "No? Suit yourself.",
+        "Fine! The chair is offended.",
+        "A stander. Bold.",
+        "Don't sit, then. Onward.",
     ],
     # Grown-ups pay with a whispered secret, kids with a spooky sound.
     "invite_adult": [
