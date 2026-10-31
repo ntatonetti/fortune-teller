@@ -208,7 +208,7 @@ HELP: dict[str, tuple[str, str]] = {
         "12",
     ),
     "COIN_LOOK_EVERY_S": (
-        "While she waits for them to take a seat, how often she shows the camera to COIN_MODEL to see whether they're sitting. Lower spots it sooner but makes more Claude calls. 0 turns it off: then only their face dropping counts.",
+        "While she waits for them to take a seat, how often she shows the camera to COIN_MODEL to see whether they're sitting. Lower spots it sooner but makes more Claude calls. 0 turns it off: then only their face dropping counts. (The name is left over from when guests paid with a coin; it no longer watches for coins, only for them sitting.)",
         "1.5: each look takes Claude about 2 s, so she notices within 2 to 4 s",
     ),
     "SIT_WAIT_S": (
