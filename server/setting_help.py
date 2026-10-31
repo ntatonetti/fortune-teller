@@ -204,8 +204,12 @@ HELP: dict[str, tuple[str, str]] = {
         "40",
     ),
     "SECRET_LISTEN_S": (
-        "How long each stretch of listening for payment lasts. Grown-ups whisper a secret: two or more words count, and they never leave the browser. Kids make a spooky sound instead: any word the mic catches counts, and so does the room suddenly getting louder (a wordless howl).",
+        "How long each stretch of listening for payment lasts. Grown-ups whisper a secret: two or more words count, and they never leave the browser. Kids make a spooky sound instead: any word the mic catches counts, and so does the room suddenly getting louder (a wordless howl), once they have finished it (HOWL_MAX_S).",
         "12",
+    ),
+    "HOWL_MAX_S": (
+        "A kid pays with a spooky sound. Once she hears one she lets them finish it: she answers when the room has been quiet for 0.7 s, or this long after the sound started, whichever comes first. Too short and she talks over a long howl.",
+        "5; 8 for big theatrical howlers",
     ),
     "COIN_LOOK_EVERY_S": (
         "While she asks them to take a seat, how often she shows the camera to COIN_MODEL to see whether they're sitting. Lower spots it sooner but makes more Claude calls. 0 turns it off: then only their face dropping counts. (The name is left over from when guests paid with a coin; it no longer watches for coins, only for them sitting.)",

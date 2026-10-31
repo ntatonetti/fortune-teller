@@ -117,14 +117,16 @@ export class Ears {
     });
   }
 
-  // Calls onLoud() once, when the room suddenly gets louder than it has been
-  // (a howl, a "boo") for a quarter second: wordless sounds that speech
-  // recognition may not transcribe. Returns a function that stops listening.
-  watchLoud(onLoud, { factor = 3, holdMs = 250 } = {}) {
+  // Calls onLoud() once the room has got louder than it has been (a howl, a
+  // "boo") for a quarter second, and then quiet again for quietMs, or maxMs
+  // after it got loud: let them finish howling. Catches wordless sounds that
+  // speech recognition may not transcribe. Returns a function that stops listening.
+  watchLoud(onLoud, { factor = 3, holdMs = 250, quietMs = 700, maxMs = 5000 } = {}) {
     let stopped = false;
     let stream, ctx, tick;
     const stop = () => {
       stopped = true;
+      this.loudOn = false;
       clearInterval(tick);
       stream?.getTracks().forEach((t) => t.stop());
       ctx?.close().catch(() => {});
@@ -134,6 +136,8 @@ export class Ears {
       .then((s) => {
         stream = s;
         if (stopped) return stop();
+        this.loudOn = true;
+        this.loudHeard = false;
         ctx = new AudioContext();
         const an = ctx.createAnalyser();
         an.fftSize = 1024;
@@ -142,16 +146,28 @@ export class Ears {
         const started = performance.now();
         let room = null; // the room's level, slowly following it
         let loudSince = 0;
+        let heardAt = 0; // when a sound held long enough to count
+        let quietSince = 0;
         tick = setInterval(() => {
           an.getFloatTimeDomainData(buf);
           const rms = Math.sqrt(buf.reduce((sum, v) => sum + v * v, 0) / buf.length);
           const now = performance.now();
+          const loud = now - started >= 700 && rms >= Math.max(room ?? rms, 0.003) * factor;
+          if (heardAt) {
+            // the room's level stays where it was before the howl
+            quietSince = loud ? 0 : quietSince || now;
+            if ((quietSince && now - quietSince >= quietMs) || now - heardAt >= maxMs) {
+              stop();
+              onLoud();
+            }
+            return;
+          }
           room = room === null ? rms : room * 0.98 + rms * 0.02;
-          if (now - started < 700 || rms < Math.max(room, 0.003) * factor) return void (loudSince = 0);
+          if (!loud) return void (loudSince = 0);
           loudSince ||= now;
           if (now - loudSince >= holdMs) {
-            stop();
-            onLoud();
+            heardAt = now;
+            this.loudHeard = true;
           }
         }, 50);
       })

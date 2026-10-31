@@ -205,7 +205,8 @@ function waitForPayment(timeoutMs) {
   const promise = new Promise((resolve) => {
     const check = setInterval(() => {
       const now = performance.now();
-      if (now - started > timeoutMs || walkedAway) finish(null);
+      const howling = ears.loudOn && ears.loudHeard; // mid-howl: let them finish
+      if ((now - started > timeoutMs && !howling) || walkedAway) finish(null);
     }, 250);
     finish = (v) => {
       if (done) return;
@@ -234,13 +235,16 @@ function waitForPayment(timeoutMs) {
     }
   };
   // Kids: any sound pays. A word the mic catches ("boo!") or the room suddenly
-  // getting louder (a wordless "ooooo"). Also called once she has finished speaking.
+  // getting louder (a wordless "ooooo"), once they've finished howling (up to
+  // HOWL_MAX_S). Also called once she has finished speaking.
   promise.listenForSound = async () => {
     if (!settings.listen) return;
-    promise.then(ears.watchLoud(() => finish("sound")));
+    promise.then(ears.watchLoud(() => finish("sound"), { maxMs: ms("howl_max") }));
+    // With the mic level working, a word waits for the howl to end like any sound.
+    const word = (t) => t && !ears.loudOn && finish("sound");
     while (listening() && tokenWaiter) {
       const t0 = performance.now();
-      const heard = await ears.listen({ maxMs: ms("secret_listen"), waitMs: ms("secret_listen"), onHeard: (t) => (showHeard(t), t && finish("sound")) });
+      const heard = await ears.listen({ maxMs: ms("secret_listen"), waitMs: ms("secret_listen"), onHeard: (t) => (showHeard(t), word(t)) });
       if (heard) return finish("sound"); // typed by the operator
       if (ears.failed) toast(`Mic unavailable (${ears.failed}): press the button, or / to type for guests.`);
       if (performance.now() - t0 < 1000) await wait(1000);

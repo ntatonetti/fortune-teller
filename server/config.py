@@ -169,6 +169,7 @@ _TIMINGS = {
     # paying
     "PAY_TIMEOUT_S": (40, "no secret (or spooky sound from a kid) by then: she goes back to sleep", (5, 120, 5)),
     "SECRET_LISTEN_S": (12, "each stretch of listening for a whispered secret, or a kid's spooky sound", (3, 30, 1)),
+    "HOWL_MAX_S": (5, "a kid's spooky sound: she waits for it to end, at most this long after it starts", (1, 15, 0.5)),
     "COIN_LOOK_EVERY_S": (1.5, "waiting for them to sit, how often she looks (the name is left over from coins; it's only the sit check now. 0 = never: only their face dropping counts)", (0, 5, 0.25)),
     "COIN_PAUSE_S": (0.8, "after the button is pressed, before she asks their question", (0, 3, 0.1)),
     "WALK_AWAY_S": (12, "no face for this long before the fortune starts = they left: she grumbles and sleeps (0 = never)", (0, 60, 1)),
