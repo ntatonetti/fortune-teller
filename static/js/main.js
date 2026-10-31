@@ -202,8 +202,8 @@ function clearHeard() {
 function waitForPayment(timeoutMs) {
   let finish;
   let done = false;
+  let started = performance.now();
   const promise = new Promise((resolve) => {
-    const started = performance.now();
     const check = setInterval(() => {
       const now = performance.now();
       if (now - started > timeoutMs || walkedAway) finish(null);
@@ -218,6 +218,8 @@ function waitForPayment(timeoutMs) {
     };
     tokenWaiter = () => finish("button");
   });
+  // The wait starts over once she has finished asking.
+  promise.restartClock = () => (started = performance.now());
   // Call once she has finished speaking, so she never hears herself.
   promise.listenForSecret = async () => {
     while (listening() && tokenWaiter) {
@@ -568,6 +570,7 @@ async function runReading({ paid = false } = {}) {
     const payment = waitForPayment(ms("pay_timeout"));
     payment.then((v) => v && speaking?.stop()); // paying mid-sentence cuts her off
     await sayStock(kid ? "invite_child" : "invite_adult");
+    payment.restartClock(); // PAY_TIMEOUT_S counts from when she has finished asking
     if (!settings.button && !listening()) tokenWaiter?.();
     if (kid) payment.listenForSound(); // kids never tell secrets
     else payment.listenForSecret();
