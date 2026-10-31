@@ -1,13 +1,13 @@
 """Drives one full reading in Chrome with a fake camera and saves screenshots.
 
 Usage: [ADULT=1 | CHILD=1] .venv/bin/python scripts/smoke.py [outdir]   (server must be running on :8000)
-ADULT=1 forces adult mode and a mid-fortune glitch; CHILD=1 forces child mode. HEAD=1 runs in foam-head mode
+ADULT=1 sets AUDIENCE=adult and a mid-fortune glitch; CHILD=1 sets AUDIENCE=child (put back to auto at the end). HEAD=1 runs in foam-head mode
 and also screenshots the alignment screen. SECRET=1 pays with a whispered secret and
 asks a question (a fake microphone stands in for speech recognition). WALKAWAY=1 has
 the guest walk off at the payment step (WALKAWAY=speak: during the fortune) and checks that she shuts down. A steady fake face
 stands in for the camera so the fake video's flicker can't trigger walk-away. With FOLLOW_UP and TAROT on (the
-default), the guest asks a question, answers each of hers, and says "stop" for each card
-(ENOUGH=n: says "enough" after n cards).
+default), the guest asks a question, answers each of hers, and says "stop" for each card.
+The greeting is stubbed: the fake camera's test pattern would read as nobody there.
 """
 
 import sys
@@ -34,6 +34,10 @@ with sync_playwright() as p:
     page.add_init_script(
         "window.webkitSpeechRecognition = class { start() {} stop() {} abort() {} };"
     )
+    kid = bool(os.getenv("CHILD"))
+    greeting = {"audience": "child" if kid else "adult", "group_size": 1, "costume": "a pirate with a cutlass",
+                "greeting": "Little one... a pirate! Come closer." if kid else "Ahh, sir... a pirate. Come closer.", "audio": None}
+    page.route("**/api/greet", lambda route: route.fulfill(json=greeting))
     page.on("console", lambda m: m.type in ("error",) and errors.append(m.text))
     page.on("pageerror", lambda e: errors.append(str(e)))
     page.goto("http://localhost:8000/")
@@ -46,11 +50,12 @@ with sync_playwright() as p:
     page.evaluate("window.oracleFakeFace(null)")  # nobody yet
     page.keyboard.press("d")
     if os.getenv("ADULT"):
-        page.keyboard.press("a")  # force adult mode
+        page.keyboard.press("a")  # AUDIENCE=adult
         page.keyboard.press("g")  # and a mid-fortune glitch
     elif os.getenv("CHILD"):
         page.keyboard.press("a")
-        page.keyboard.press("a")  # force child mode
+        page.wait_for_timeout(800)
+        page.keyboard.press("a")  # AUDIENCE=child
     page.screenshot(path=out / "1-asleep.png")
 
     def state():
@@ -125,10 +130,6 @@ with sync_playwright() as p:
             page.wait_for_timeout(1100)
             if not page.evaluate("window.oracleChoosing()"):
                 print("FAIL: chatter stopped the cards")
-            if n and n == int(os.getenv("ENOUGH") or 0):
-                page.evaluate("window.oracleHear(\"that's enough\")")
-                print("said enough after", n)
-                continue
             page.evaluate("window.oracleHear('stop')")
             page.wait_for_timeout(400)
             print("drew:", page.evaluate("window.oracleReading().cards").pop())
@@ -163,6 +164,7 @@ with sync_playwright() as p:
         saved = page.evaluate("JSON.parse(localStorage.getItem('oracle-headmap')).face[0]")
         print("face corner after drag:", [round(v) for v in saved])
         page.keyboard.press("Escape")
+    page.request.post("http://localhost:8000/api/settings", data={"values": {"AUDIENCE": "auto"}})
     browser.close()
 
 print("errors:", errors or "none")
