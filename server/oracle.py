@@ -101,7 +101,7 @@ def _tarot_schema(places: list[str]) -> dict:
             **{
                 place: {
                     "type": "string",
-                    "description": f"Spoken aloud as you turn over the card of their {place.upper()}: say it is their {place}, name the card, and read it with flair: a playful, theatrical reveal with one vivid image and a wink or a twist, tied to their question and what they told you. Each card's reading opens differently. ADULT: 20-40 words. CHILD: 12-25 words.",
+                    "description": f"Spoken aloud as you turn over the card of their {variety.place_name(place).upper()}: say it is their {variety.place_name(place)}, name the card, and read it with flair: a playful, theatrical reveal with one vivid image and a wink or a twist, tied to their question and what they told you. Each card's reading opens differently. ADULT: 20-40 words. CHILD: 12-25 words.",
                 }
                 for place in places
             },
@@ -114,7 +114,7 @@ def _tarot_schema(places: list[str]) -> dict:
     }
 
 
-TAROT_SCHEMAS = {n: _tarot_schema(variety.SPREAD[:n]) for n in range(1, len(variety.SPREAD) + 1)}
+TAROT_SCHEMAS = {n: _tarot_schema(variety.spread(n)) for n in range(1, len(variety.SPREAD) + 1)}
 
 PROBE_SCHEMA = {
     "type": "object",
@@ -357,7 +357,7 @@ def _talk(talk: list[dict]) -> str:
 
 
 def _cards(cards: list[str]) -> str:
-    return ", ".join(f"{place}: {card}" for place, card in zip(variety.SPREAD, cards))
+    return ", ".join(f"{variety.place_name(place)}: {card}" for place, card in zip(variety.spread(len(cards)), cards))
 
 
 PROBES = {
@@ -449,7 +449,7 @@ async def fortune(
             "\n\nYou drew them out before the reading (their words transcribed from speech, so they may be garbled):\n"
             f"{_talk(talk)}\nUse what they told you, so they can tell you listened. Never repeat anything crude or too personal."
         )
-    places = variety.SPREAD[:len(cards)]
+    places = variety.spread(len(cards))
     brief = _brief("spoken` and each of `" + "`, `".join(places) if cards else "spoken", max_words)
     data = await _ask(
         TAROT_SCHEMAS[len(cards)] if cards else FORTUNE_SCHEMA,

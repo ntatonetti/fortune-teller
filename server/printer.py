@@ -3,7 +3,7 @@
 import logging
 import textwrap
 
-from . import config
+from . import config, variety
 from .models import Fortune
 
 log = logging.getLogger("printer")
@@ -26,7 +26,7 @@ def _short(question: str, limit: int = 90) -> str:
 
 def _spread(f: Fortune) -> list[str]:
     """The tarot cards they drew, one per line: "Past: The Tower"."""
-    return [f"{place.title()}: {card}" for place, card in zip(("past", "present", "future"), f.cards)]
+    return [f"{variety.place_name(place).capitalize()}: {card}" for place, card in zip(variety.spread(len(f.cards)), f.cards)]
 
 
 def card_lines(f: Fortune, width: int) -> list[str]:

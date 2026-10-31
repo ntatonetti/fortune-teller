@@ -60,7 +60,7 @@ def _spoken(call: dict) -> str:
         return out.get("line", "")
     if call["kind"] == "fortune":
         # a tarot reading is spoken card by card, then the close
-        return " ".join(out.get(k, "") for k in ("past", "present", "future", "spoken") if out.get(k))
+        return " ".join(out.get(k, "") for k in ("past", "present", "future", "present_and_future", "obstacle", "outcome", "spoken") if out.get(k))
     return ""
 
 

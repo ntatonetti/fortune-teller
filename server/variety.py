@@ -24,6 +24,15 @@ TAROT_FOR_KIDS = ["The Fool", "The Magician", "The Empress", "The Chariot", "Str
 SPREAD = ["past", "present", "future", "obstacle", "outcome"]
 
 
+def spread(n: int) -> list[str]:
+    """The places of n cards. A lone card reads their present and future together."""
+    return ["present_and_future"] if n == 1 else SPREAD[:n]
+
+
+def place_name(place: str) -> str:
+    return place.replace("_", " ")
+
+
 def card_image(name: str) -> str:
     return f"/img/tarot/{name.lower().replace(' ', '-')}.jpg"
 

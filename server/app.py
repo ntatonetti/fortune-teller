@@ -106,7 +106,7 @@ async def get_config():
         "follow_up": config.FOLLOW_UP,
         "tarot": config.TAROT,
         "audience": config.AUDIENCE,
-        "spread": variety.SPREAD[:config.CARDS],  # the places of the cards they may draw
+        "spread": [variety.place_name(p) for p in variety.spread(config.CARDS)],  # the places of the cards they may draw
         "deck": {
             "adult": [{"name": n, "img": variety.card_image(n)} for n in variety.TAROT],
         },

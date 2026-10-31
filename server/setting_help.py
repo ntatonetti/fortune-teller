@@ -66,7 +66,7 @@ HELP: dict[str, tuple[str, str]] = {
         "true; false for her old single fortune",
     ),
     "CARDS": (
-        "How many tarot cards an adult draws, one after another: their past, present and future at 3, then what stands in their way and where it all leads at 4 and 5.",
+        "How many tarot cards an adult draws, one after another: one card reads their present and future together, 3 their past, present and future, then what stands in their way and where it all leads at 4 and 5.",
         "3; 1 for a single card and a quicker reading",
     ),
     # Her voice
