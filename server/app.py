@@ -289,6 +289,19 @@ async def clear_guests():
     return {"cleared": True}
 
 
+class Step(BaseModel):
+    t: float  # epoch seconds, from the booth's page
+    state: str
+    note: str = ""
+
+
+@app.post("/api/step")
+async def step(s: Step):
+    """The booth's page moved to a new step of a reading: log it with the time."""
+    history.step(s.t, s.state[:20], s.note[:200])
+    return {}
+
+
 @app.get("/api/history")
 async def history_days():
     return history.days()

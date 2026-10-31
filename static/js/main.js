@@ -883,8 +883,18 @@ function frame(now) {
     const n = Math.ceil(subtitle.ctrl.progress() * subtitle.words.length * 1.1);
     $("subtitle").textContent = subtitle.words.slice(0, n).join(" ");
   }
+  if (state !== loggedState) logStep((loggedState = state));
   drawDebug();
   requestAnimationFrame(frame);
+}
+
+// Every step of a reading, timed, into data/steps/ on the server, so her
+// timing can be checked afterwards without anyone at the booth.
+let loggedState = "";
+function logStep(s) {
+  const r = reading;
+  const note = s === "sleep" || !r ? "" : `${r.audience} seated=${r.seated ? "yes" : "no"} paid=${r.paidWith || "-"}${walkedAway ? " walked-away" : ""}`;
+  api("/api/step", { t: Date.now() / 1000, state: s, note }).catch(() => {});
 }
 
 // ---------------- setup & keys ----------------

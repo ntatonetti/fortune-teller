@@ -723,3 +723,11 @@ def test_spend_report_counts_her_questions_and_every_card(monkeypatch, tmp_path)
         rows = {row["stage"]: row for row in c.get("/api/spend").json()["rows"]}
     assert rows["probe"]["calls"] == 1 and rows["voice_probe"]["chars"] == 40
     assert rows["voice_fortune"]["chars"] == 43  # the three cards and the close, joined by spaces
+
+
+def test_steps_are_logged_with_the_time(monkeypatch, tmp_path):
+    monkeypatch.setattr(app_module.config, "STEPS_DIR", tmp_path / "steps")
+    with TestClient(app_module.app) as client:
+        assert client.post("/api/step", json={"t": 1793484553.25, "state": "invite", "note": "adult seated=no paid=-"}).status_code == 200
+    (log,) = (tmp_path / "steps").glob("*.log")
+    assert log.read_text().endswith(".250  invite    adult seated=no paid=-\n")

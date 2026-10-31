@@ -48,6 +48,19 @@ def record(kind: str, *, model: str, effort: str, system: str, content: list, st
         pass  # a full disk must never stop a reading
 
 
+def step(t: float, state: str, note: str = "") -> None:
+    """One line per step of a reading (woke, asked to sit, asked for a secret, asleep...),
+    timed by the booth's page, in STEPS_DIR: for checking her timing after the fact."""
+    line = f"{time.strftime('%H:%M:%S', time.localtime(t))}.{int(t * 1000) % 1000:03d}  {state:<9} {note}".rstrip()
+    try:
+        with _lock:
+            config.STEPS_DIR.mkdir(parents=True, exist_ok=True)
+            with open(config.STEPS_DIR / f"{time.strftime('%Y-%m-%d', time.localtime(t))}.log", "a") as f:
+                f.write(line + "\n")
+    except OSError:
+        pass
+
+
 def days() -> list[dict]:
     """[{"day", "calls"}], newest first."""
     out = []
