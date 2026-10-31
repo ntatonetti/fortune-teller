@@ -35,23 +35,41 @@ body.mirror #show {
   display: none;
 }
 
-/* A placard hung from the top edge: who she thinks is in front of her. */
+/* A placard hung on two cords from the top edge, below the title: who she
+   thinks is in front of her. */
 #seeker {
   position: fixed;
-  top: 0;
-  left: 4vw;
-  padding: 2.4vh 1.8vw 1.4vh;
-  font-size: 3.2vh;
+  top: 19vh;
+  left: 3vw;
+  padding: 1.4vh 1.6vw;
+  font-size: 2.9vh;
   letter-spacing: 0.06em;
   border: 0.35vh solid var(--gold);
-  border-top: none;
-  border-radius: 0 0 1.2vh 1.2vh;
+  border-radius: 1.2vh;
   box-shadow:
     inset 0 0 0 0.5vh rgba(0, 0, 0, 0.35),
     0 0.8vh 2.4vh rgba(0, 0, 0, 0.7);
-  transform-origin: 50% 0;
+  transform-origin: 50% -19vh;
   animation: sign-drop 1.4s ease-out;
   pointer-events: none;
+}
+
+#seeker::before,
+#seeker::after {
+  content: "";
+  position: absolute;
+  bottom: 100%;
+  height: 19vh;
+  width: 0.3vh;
+  background: var(--gold-dim);
+}
+
+#seeker::before {
+  left: 18%;
+}
+
+#seeker::after {
+  right: 18%;
 }
 
 #seeker[hidden] {
@@ -70,7 +88,7 @@ body.mirror #show {
 
 @keyframes sign-drop {
   0% {
-    transform: translateY(-110%) rotate(0deg);
+    transform: translateY(-40vh) rotate(0deg);
   }
   45% {
     transform: translateY(0) rotate(4deg);
