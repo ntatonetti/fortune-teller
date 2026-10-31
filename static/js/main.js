@@ -476,7 +476,7 @@ async function seatThem(kid) {
   state = "sit";
   setPrompt("✦ take a seat ✦");
   const f = watcher.nearest;
-  reading.standing = f && { y: f.y, h: f.h || f.w }; // where their face is as she asks
+  reading.standing = f && { y: f.y, w: f.w, h: f.h || f.w }; // where their face is as she asks
   let asking = true;
   const asked = sayStock(kid ? "sit_child" : "sit_adult").then(() => (asking = false));
   while (!reading.seated && asking) {
@@ -494,11 +494,14 @@ async function seatThem(kid) {
 }
 
 // While she asks them to sit, their face well below where it was when she
-// started asking: they've sat down. (Measured from waking, a guest stepping
-// closer looked seated.)
+// started asking, or closer (10% bigger) with all of it in frame: they've sat
+// down, or near enough. Measured from when she asks, not from waking.
 function sitCheck(f) {
   const s = reading?.standing;
-  if (state === "sit" && s && !reading.seated && f.y - s.y > s.h * 0.6) reading.seated = true;
+  if (state !== "sit" || !s || !f || reading.seated) return;
+  const h = f.h || f.w, m = 0.02;
+  const inFrame = f.x - f.w / 2 > m && f.x + f.w / 2 < 1 - m && f.y - h / 2 > m && f.y + h / 2 < 1 - m;
+  if (f.y - s.y > s.h * 0.6 || (f.w > s.w * 1.1 && inFrame && f.kp)) reading.seated = true;
 }
 
 // Kids pay and ask their question. Each adult reading is one of the styles
