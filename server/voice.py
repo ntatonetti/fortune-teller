@@ -94,12 +94,8 @@ STOCK_LINES: dict[str, list[str]] = {
     ],
     # The tarot draw: cards shuffle through her ball until they choose.
     "draw_adult": [
-        "Now... three cards. Your past, your present, your future. Watch the glass... and press the button, or say stop, when a card calls to you.",
-        "The deck is restless tonight. Three cards: what was, what is, what will be. Stop the cards when one calls your name... the button, or your voice.",
-    ],
-    "draw_child": [
-        "Now let's pick three magic cards! Watch my crystal ball... and press the button, or shout stop, when you see the one you want!",
-        "Time for the magic cards! Three of them. Watch the ball, and press the button or say stop when one looks just right!",
+        "Now... three cards. Your past, your present, your future. Watch the glass... and when a card calls to you, say stop.",
+        "The deck is restless tonight. Three cards: what was, what is, what will be. When one calls your name... tell it to stop.",
     ],
     "card_past": ["Your past...", "This one... the past.", "The past..."],
     "card_present": ["Your present...", "And now... the present.", "The present..."],

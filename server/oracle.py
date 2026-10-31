@@ -321,9 +321,9 @@ async def coin_shown(jpeg_b64: str) -> bool | None:
 
 
 def spread(cards: list[str], kid: bool) -> list[str]:
-    """The cards they drew, if they're a whole spread of real cards; else none."""
-    deck = variety.TAROT_FOR_KIDS if kid else variety.TAROT
-    return cards if len(cards) == len(variety.SPREAD) and all(c in deck for c in cards) else []
+    """The cards they drew, if they're a whole spread of real cards; else none.
+    Kids don't draw cards: they pay and ask their question."""
+    return cards if not kid and len(cards) == len(variety.SPREAD) and all(c in variety.TAROT for c in cards) else []
 
 
 def _talk(talk: list[dict]) -> str:

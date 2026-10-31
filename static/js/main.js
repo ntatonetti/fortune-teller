@@ -46,7 +46,7 @@ const ms = (name) => T[name] * 1000;
 
 let state = "boot";
 let reading = null; // {audience, kid, costume, fortune, question, talk: [{she, guest}], cards: [{name, img}]}
-let deck = { adult: [], child: [] }; // her tarot cards, pictures loaded once
+let deck = []; // her tarot cards, pictures loaded once
 let tokenWaiter = null;
 let farewellAt = 0;
 // The guest whose reading just ended, followed by place and costume colours so
@@ -279,7 +279,7 @@ async function askQuestion(kid) {
   setPrompt("");
   reading.question = question;
   // Her question back is written while she reacts to theirs.
-  if (server.follow_up) reading.followUp = probe("followup");
+  if (reading.style === "conversation") reading.followUp = probe("followup");
   if (question) showHeard(question);
   await wait(ms("heard_show"));
   clearHeard();
@@ -317,10 +317,14 @@ async function askBack(probeP, kid) {
   stillHere();
 }
 
-// Resolves how a card was chosen: "press" (the button), "said" (any word), "fate"
-// (nobody chose in time) or "gone" (they walked away).
+// Words that stop the cards: "stop!", "this one", "now"... Anything else (the
+// friends watching, chatting) lets them keep shuffling.
+const STOP_WORDS = /\b(stop\w*|halt|freeze|now|wait|pick|choose|yes|this one|that one|that's it|that's the one)\b/i;
+
+// Resolves how a card was chosen: "said" (they said stop), "press" (Space, for
+// the operator), "fate" (nobody chose in time) or "gone" (they walked away).
 function pickCard() {
-  const waitMs = settings.button || listening() ? ms("draw_wait") : between(1500, 3500);
+  const waitMs = listening() ? ms("draw_wait") : between(1500, 3500);
   return new Promise((resolve) => {
     let done = false;
     const started = performance.now();
@@ -337,17 +341,23 @@ function pickCard() {
       else if (performance.now() - started > waitMs) finish("fate");
     }, 100);
     tokenWaiter = () => finish("press");
-    if (listening()) {
-      ears.listen({ maxMs: waitMs, waitMs, onHeard: (t) => wordCount(t) && finish("said") }).then((t) => t && finish("said"));
-    }
+    const stopped = (t) => STOP_WORDS.test(t) && (finish("said"), true);
+    (async () => {
+      while (!done && listening()) {
+        const t0 = performance.now();
+        const heard = await ears.listen({ maxMs: waitMs, waitMs, silenceMs: 1200, onHeard: stopped });
+        if (stopped(heard) || done) return;
+        if (performance.now() - t0 < 1000) await wait(1000); // don't spin if recognition keeps bailing
+      }
+    })();
   });
 }
 
 // They draw their past, present and future: the deck shuffles through her
-// ball, and the card showing when they press the button (or say "stop") is
-// theirs. Then she turns the first one over and asks them about it.
-async function drawCards(kid) {
-  const cards = kid ? deck.child : deck.adult;
+// ball, and the card showing when they say "stop" is theirs. Then she turns
+// the first one over and asks them about it. Adults only.
+async function drawCards() {
+  const cards = deck;
   if (cards.length < 3) return;
   state = "draw";
   puppet.set({ eyeX: 0, eyeY: 1, lidL: 0.7, lidR: 0.7 }); // she looks down into the ball
@@ -355,12 +365,12 @@ async function drawCards(kid) {
   sound.ball(0.8);
   puppet.deck = cards;
   puppet.shuffling = true;
-  await sayStock(kid ? "draw_child" : "draw_adult");
+  await sayStock("draw_adult");
   stillHere();
   for (const place of ["past", "present", "future"]) {
     puppet.deck = cards.filter((c) => !reading.cards.includes(c));
     puppet.shuffling = true;
-    setPrompt("✦ press when a card calls to you ✦");
+    setPrompt("✦ say “stop” when a card calls to you ✦");
     sound.cue();
     const how = await pickCard();
     stillHere();
@@ -379,7 +389,7 @@ async function drawCards(kid) {
   setPrompt("");
   puppet.card = reading.cards[0]; // the first card, turned over again
   puppet.set({ lidL: 1, lidR: 1 });
-  if (reading.aboutCard) await askBack(reading.aboutCard, kid);
+  if (reading.aboutCard) await askBack(reading.aboutCard, false);
 }
 
 function onToken() {
@@ -447,6 +457,14 @@ async function shutDown(walked) {
   await sleepAgain();
 }
 
+// Kids pay and ask their question. Each adult reading is one of the styles
+// that are on, at random: "tarot" (they draw cards) or "conversation" (she
+// asks them a question back). "" is a plain question-and-fortune.
+function adultStyle() {
+  const styles = [server.tarot && "tarot", server.follow_up && "conversation"].filter(Boolean);
+  return styles[Math.floor(Math.random() * styles.length)] || "";
+}
+
 async function runReading({ paid = false } = {}) {
   state = "wake";
   stopSleepTalk();
@@ -478,7 +496,7 @@ async function runReading({ paid = false } = {}) {
   const kid = audience === "child" || audience === "mixed";
   const showFace = !kid || !!server.kid_flicker; // kids see their face in hers only with KID_FLICKER
   if (!showFace) puppet.guestFace = null;
-  reading = { audience, kid, costume: greet?.costume || "", fortune: null, paidWith: paid ? "coin" : "", question: "", talk: [], cards: [] };
+  reading = { audience, kid, style: kid ? "" : adultStyle(), costume: greet?.costume || "", fortune: null, paidWith: paid ? "coin" : "", question: "", talk: [], cards: [] };
   puppet.set({ brow: kid ? 1 : 0.4 });
 
   state = "greet";
@@ -520,7 +538,7 @@ async function runReading({ paid = false } = {}) {
   stillHere();
   await askQuestion(kid);
   if (reading.followUp) await askBack(reading.followUp, kid);
-  if (server.tarot) await drawCards(kid);
+  if (reading.style === "tarot") await drawCards();
   await consultAndSpeak();
 }
 
@@ -896,12 +914,8 @@ function applyServer() {
   puppet.flickerWhere = server.flicker_where ?? "ball";
   puppet.guestAlpha = server.flicker_opacity ?? 1;
   if (server.timings) puppet.timing = T = { ...puppet.timing, ...server.timings }; // her defaults fill any gaps
-  // Her tarot deck, each picture loaded once; the kids' cards are the same objects.
-  if (server.deck && !deck.adult.length) {
-    const byName = {};
-    const card = ({ name, img }) => (byName[name] ||= { name, img: Object.assign(new Image(), { src: img }) });
-    deck = { adult: server.deck.adult.map(card), child: server.deck.child.map(card) };
-  }
+  // Her tarot deck, each picture loaded once.
+  if (server.deck && !deck.length) deck = server.deck.adult.map(({ name, img }) => ({ name, img: Object.assign(new Image(), { src: img }) }));
 }
 
 async function refreshServer() {

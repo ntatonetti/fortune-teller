@@ -96,7 +96,6 @@ async def get_config():
         "tarot": config.TAROT,
         "deck": {
             "adult": [{"name": n, "img": variety.card_image(n)} for n in variety.TAROT],
-            "child": [{"name": n, "img": variety.card_image(n)} for n in variety.TAROT_FOR_KIDS],
         },
         "settings": [
             {"section": s, "name": n, "value": v, "about": a, **config.CONTROLS[n],

@@ -46,11 +46,11 @@ HELP: dict[str, tuple[str, str]] = {
     ),
     # The conversation
     "FOLLOW_UP": (
-        "After the guest asks their question, she asks one back, to draw them out (\"Is this a matter of the heart... or of coin?\"; for kids, \"What's the bravest thing you've ever done?\"). She listens to the answer as patiently as to the question, and the fortune uses it. Needs listening on (L).",
+        "A conversation reading, for adults: after their question she asks one back, to draw them out (\"Is this a matter of the heart... or of coin?\"). She listens to the answer as patiently as to the question, and the fortune uses it. With TAROT also on, each adult reading is one or the other, at random. Kids just pay and ask their question. Needs listening on (L).",
         "true; false for a shorter reading with no back-and-forth",
     ),
     "TAROT": (
-        "Before she consults, the guest draws three cards, their past, present and future: cards shuffle through her crystal ball, and the one showing when they press the button (or say \"stop\") is theirs. She turns the first one over and asks them about it, then reads the fortune card by card, each card back in her ball as she speaks of it. The cards print on the ticket. Kids draw only from the gentle cards. Off, she reads from a random omen as before.",
+        "Before she consults, the guest draws three cards, their past, present and future: cards shuffle through her crystal ball, and the one showing when they say \"stop\" (or \"this one\", \"now\"...) is theirs. She turns the first one over and asks them about it, then reads the fortune card by card, each card back in her ball as she speaks of it. The cards print on the ticket. Adults only: kids just pay and ask their question. With FOLLOW_UP also on, each adult reading is one or the other, at random. Off, she reads from a random omen as before.",
         "true; false for her old single fortune",
     ),
     # Her voice

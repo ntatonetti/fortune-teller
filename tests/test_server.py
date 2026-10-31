@@ -604,7 +604,7 @@ def test_she_asks_back_with_what_they_said(monkeypatch):
         assert "<answer>coin, obviously</answer>" in seen["text"]
         assert "past: The Tower, present: The Star, future: The Sun" in seen["text"] and "their PAST" in seen["text"]
 
-        # kids draw only the gentle cards, and a card question needs a real spread
+        # kids don't draw cards, and a card question needs a real spread
         bad = client.post("/api/probe", json={"kind": "card", "kid": True, "cards": cards})
         assert bad.status_code == 400
         assert client.post("/api/probe", json={"kind": "riddle"}).status_code == 400
@@ -641,8 +641,8 @@ def test_tarot_fortune_is_read_card_by_card(monkeypatch):
     assert f.cards == ["The Tower", "The Star", "The Sun"]
     assert f.readings == ["The Tower... it fell.", "The Star... hope.", "The Sun... gold."]
 
-    # no spread (or a scary card for a kid): the old single fortune from a random sign
-    f = asyncio.run(oracle.fortune("x" * 200, "child", "a fairy", [], cards=["Death", "The Star", "The Sun"]))
+    # no spread (or a kid, who doesn't draw cards): the old single fortune from a random sign
+    f = asyncio.run(oracle.fortune("x" * 200, "child", "a fairy", [], cards=["The Fool", "The Star", "The Sun"]))
     assert seen["schema"] is oracle.FORTUNE_SCHEMA and f.cards == [] and f.readings == []
 
 
@@ -659,7 +659,7 @@ def test_tarot_reading_is_voiced_per_card(monkeypatch):
         cfg = client.get("/api/config").json()
     assert len(f["readings_audio"]) == 3 and all(a.startswith("/api/audio/") for a in f["readings_audio"])
     assert cfg["tarot"] is True and cfg["follow_up"] is True
-    assert len(cfg["deck"]["adult"]) == 22 and "Death" not in [c["name"] for c in cfg["deck"]["child"]]
+    assert len(cfg["deck"]["adult"]) == 22 and "child" not in cfg["deck"]
 
 
 def test_every_card_has_its_picture():
