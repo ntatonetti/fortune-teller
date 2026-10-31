@@ -17,6 +17,7 @@ export class Watcher {
     this.landmarker = null; // the face mesh, for lining the guest's face up with hers
     this.nearest = null; // {x, y, w, h, kp, turn} normalized 0..1 in the camera image, or null
     this.faces = [];
+    this.confidence = 0.3; // FACE_CONFIDENCE: how sure the detector must be that it sees a face
     this._lastVideoTime = -1;
     this._snap = document.createElement("canvas");
   }
@@ -39,7 +40,7 @@ export class Watcher {
       this.detector = await FaceDetector.createFromOptions(fileset, {
         baseOptions: { modelAssetPath: "https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite", delegate: "GPU" },
         runningMode: "VIDEO",
-        minDetectionConfidence: 0.5,
+        minDetectionConfidence: this.confidence,
       });
       FaceLandmarker.createFromOptions(fileset, {
         baseOptions: { modelAssetPath: "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task" },
@@ -49,6 +50,13 @@ export class Watcher {
         .then((l) => (this.landmarker = l))
         .catch((e) => console.warn("no face mesh; the flicker lines up from the detector's keypoints", e));
     }
+  }
+
+  // A new FACE_CONFIDENCE from the settings page.
+  setConfidence(c) {
+    if (!c || c === this.confidence) return;
+    this.confidence = c;
+    this.detector?.setOptions({ minDetectionConfidence: c });
   }
 
   // Call once per animation frame.

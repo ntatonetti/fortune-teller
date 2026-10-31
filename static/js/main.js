@@ -983,6 +983,7 @@ function applyServer() {
   puppet.background = headmap.bg.on = server.background ?? true;
   headmap.apply();
   if (server.timings) puppet.timing = T = { ...puppet.timing, ...server.timings }; // her defaults fill any gaps
+  watcher.setConfidence(T.face_confidence);
   // Her tarot deck, each picture loaded once.
   if (server.deck && !deck.length) deck = server.deck.adult.map(({ name, img }) => ({ name, img: Object.assign(new Image(), { src: img }) }));
 }

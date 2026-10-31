@@ -211,6 +211,10 @@ HELP: dict[str, tuple[str, str]] = {
         "While she asks them to take a seat, how often she shows the camera to COIN_MODEL to see whether they're sitting. Lower spots it sooner but makes more Claude calls. 0 turns it off: then only their face dropping counts. (The name is left over from when guests paid with a coin; it no longer watches for coins, only for them sitting.)",
         "1.5: each look takes Claude about 2 s, so she notices within 2 to 4 s",
     ),
+    "FACE_CONFIDENCE": (
+        "How sure the camera's face detector must be before something counts as a face. Every part of a reading hangs on it: a face wakes her, she follows it with her eyes, and losing it for WALK_AWAY_S means the guest has left. Masks, face paint, hat brims, heavy makeup and heads turned or tilted down all lower the detector's certainty, so at a costume party keep it low. Too low and a poster or a shadow can wake her, but the greeting then sees nobody there and she goes back to sleep.",
+        "0.3 at a costume party; 0.5 if posters or shadows keep waking her",
+    ),
     "WALK_AWAY_S": (
         "Mid-reading, if the camera sees no face for this long (and nobody speaks or presses the button), she decides they've left: she stops, grumbles and goes back to sleep. Guests lose the camera more than you'd think: leaning in close to whisper a secret, looking down, turning to a friend, a mask or hat brim. Too short and she gives up on people who are still there. Once she is telling the fortune it never applies.",
         "20; 30 if she still thinks people have left when they haven't, 0 to turn it off",

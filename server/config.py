@@ -149,6 +149,7 @@ _TIMINGS = {
     "REWAKE_GONE_S": (2.5, "the last guest out of sight this long is gone: then even they can wake her again", (0, 15, 0.5)),
     "REWAKE_ANYWAY_S": (30, "the last guest still lingering this long after their reading is greeted again", (5, 180, 5)),
     "SAME_GUEST": (0.6, "how alike (0-1) a face's costume colours must be to the last guest's to count as them, not someone new: lower it if she greets the guest who just left, raise it if she ignores the next one", (0.2, 0.95, 0.05)),
+    "FACE_CONFIDENCE": (0.3, "how sure the camera must be (0-1) that it sees a face: lower counts masks, makeup and turned heads, higher ignores shadows and posters", (0.1, 0.9, 0.05)),
     "PEEK_AFTER_S": (2.5, "someone lingering out of range: her eyes follow them after this", (0, 15, 0.5)),
     "BECKON_AFTER_S": (7, "still lingering: she calls them over after this", (1, 30, 0.5)),
     "BECKON_EVERY_S": (60, "at most one call-over per this", (10, 300, 5)),
