@@ -34,6 +34,7 @@ VOICE_PRICES = {
 
 STAGES = [
     ("greet", "Greeting: Claude looks at them"),
+    ("coin", "Coin held up? (Claude looks while they pay)"),
     ("asked", "Finished asking? (each pause)"),
     ("probe", "Her questions back: Claude writes them"),
     ("fortune", "Fortune: Claude reads them"),
@@ -106,6 +107,7 @@ def report(day: str = "") -> dict:
         "rows": list(rows.values()),
         "claude_model": config.CLAUDE_MODEL,
         "asked_model": config.ASKED_MODEL,
+        "coin_model": config.COIN_MODEL,
         "chat_model": config.CHAT_MODEL,
         "voice_model": config.ELEVENLABS_MODEL,
         "voice_price_per_1k": voice_price,

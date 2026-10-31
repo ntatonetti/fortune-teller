@@ -21,13 +21,23 @@ ELEVEN_URL = "https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
 # waiting in line don't hear the same script twice. Pre-rendered at startup.
 STOCK_LINES: dict[str, list[str]] = {
     "invite_adult": [
-        "The fates demand payment. A pirate's gold coin, if you have one... drop it in and press the button. If your pockets are empty... whisper me a secret instead.",
-        "Payment first, darling. One pirate's gold coin in the slot, then press the button... or, if you carry no gold, confess a secret to the glass.",
-        "The gears do not turn for free. A gold coin and the button... or a secret, whispered close. Your choice.",
+        "The fates demand payment. A pirate's gold coin, if you have one... hold it up to the glass, so I can see it shine. If your pockets are empty... whisper me a secret instead.",
+        "Payment first, darling. Show me one pirate's gold coin, up to the glass... or, if you carry no gold, confess a secret.",
+        "The gears do not turn for free. Hold a gold coin up where I can see it... or whisper a secret, close. Your choice.",
     ],
     "invite_child": [
-        "Do you have a golden pirate coin, little one? Drop it in and press the button! Or... tell me a secret, and I'll keep it safe.",
-        "Every fortune costs one golden coin! Pop it in and press the button... or tell me a secret instead.",
+        "Do you have a golden pirate coin, little one? Hold it up to the glass so I can see it! Or... tell me a secret, and I'll keep it safe.",
+        "Every fortune costs one golden coin! Show it to me, up high... or tell me a secret instead.",
+    ],
+    # She saw the coin they held up: into the cup with it.
+    "coin_seen_adult": [
+        "Ahh... real pirate gold. Into the cup with it.",
+        "I see it gleaming. Drop it in the cup, darling... the fates are paid.",
+        "Gold... how it shines. Into the cup, and we may begin.",
+    ],
+    "coin_seen_child": [
+        "Ooh, what a shiny coin! Pop it in the cup for me.",
+        "I see it! Real pirate gold! Drop it in the cup, little one.",
     ],
     "secret_adult": [
         "Mmm... a delicious secret. It is safe with the gears... for now.",

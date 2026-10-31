@@ -83,6 +83,7 @@ FORTUNE_TIMEOUT_S = _setting("FORTUNE_TIMEOUT_S", 20, "gives up on the fortune a
 ASKED_MODEL = _setting("ASKED_MODEL", "claude-haiku-5-5", "judges whether a guest has finished asking", str, MODELS)
 ASKED_TIMEOUT_S = _setting("ASKED_TIMEOUT_S", 4, "gives up on that judgement after this", span=[1, 15, 0.5])
 CHAT_MODEL = _setting("CHAT_MODEL", "claude-haiku-5-5", "writes the questions she asks them back, mid-reading", str, MODELS)
+COIN_MODEL = _setting("COIN_MODEL", "claude-haiku-5-5", "looks for the gold coin they hold up to the glass", str, MODELS)
 
 _section = "The conversation"
 FOLLOW_UP = _setting("FOLLOW_UP", True, "after their question, she asks them one back", bool)
@@ -162,7 +163,9 @@ _TIMINGS = {
     # paying
     "PAY_TIMEOUT_S": (40, "no coin or secret by then: she goes back to sleep", (5, 120, 5)),
     "SECRET_LISTEN_S": (12, "each stretch of listening for a whispered secret", (3, 30, 1)),
-    "COIN_PAUSE_S": (0.8, "after the coin drops, before she asks their question", (0, 3, 0.1)),
+    "COIN_LOOK_EVERY_S": (1.5, "waiting for payment, how often she looks for a coin held up to the glass (0 = never: the button pays)", (0, 5, 0.25)),
+    "COIN_CUP_S": (2.5, "after she sees their coin, time to drop it in the cup before she asks their question", (0, 6, 0.5)),
+    "COIN_PAUSE_S": (0.8, "after the button is pressed, before she asks their question", (0, 3, 0.1)),
     # their question
     "QUESTION_MAX_S": (30, "longest she listens to a question", (5, 60, 1)),
     "QUESTION_START_S": (10, "gives up if an adult hasn't started talking by then", (2, 30, 1)),

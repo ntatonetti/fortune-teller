@@ -36,6 +36,10 @@ HELP: dict[str, tuple[str, str]] = {
         "How long she waits for that finished-or-not judgement. Past this she assumes they're done and moves on.",
         "4: she never waits more than 4 s on it",
     ),
+    "COIN_MODEL": (
+        "While she waits for payment, this Claude model looks at the camera every COIN_LOOK_EVERY_S seconds and says whether someone is holding up a coin. It runs many times per guest, so it should be small and fast.",
+        "claude-haiku-5-5: about 2 s a look, roughly a hundredth of a cent each",
+    ),
     "CHAT_MODEL": (
         "The Claude model that writes the questions she asks them back: one after their question, and one about the first tarot card they draw. It only reads the words (no camera frame), and the guest is waiting on it, so a fast model keeps the talk flowing.",
         "claude-haiku-5-5 for a quick reply; claude-opus-5-5 for sharper questions, a second or two slower",
@@ -180,15 +184,23 @@ HELP: dict[str, tuple[str, str]] = {
     ),
     # Paying
     "PAY_TIMEOUT_S": (
-        "After asking for payment (a press of the button, or a whispered secret), how long she waits before giving up and going back to sleep.",
+        "After asking for payment (a gold coin held up to the glass, a whispered secret, or the button), how long she waits before giving up and going back to sleep.",
         "40",
     ),
     "SECRET_LISTEN_S": (
         "How long each stretch of listening for a whispered secret lasts. Anything the mic hears counts as a secret. The words never leave the browser.",
         "12",
     ),
+    "COIN_LOOK_EVERY_S": (
+        "While she waits for payment, how often she shows the camera to COIN_MODEL to see whether they're holding up a coin. Lower spots the coin sooner but makes more Claude calls. 0 turns it off: then only the button (or Space) pays.",
+        "1.5: each look takes Claude about 2 s, so she notices a coin within 2 to 4 s",
+    ),
+    "COIN_CUP_S": (
+        "Once she has seen their coin and told them to drop it in the cup, how long she waits for them to do it before she hears it land and asks for their question.",
+        "2.5; raise it if the cup is a step or two away from the glass",
+    ),
     "COIN_PAUSE_S": (
-        "After the button is pressed (the coin drops), a beat before she asks for their question.",
+        "After the button (or Space) is pressed instead, a beat before she asks for their question.",
         "0.8",
     ),
     # Their question

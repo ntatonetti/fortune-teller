@@ -188,12 +188,12 @@ function clearHeard() {
   $("subtitle").classList.remove("show", "heard");
 }
 
-// Payment: the button (they dropped a gold coin) or a whispered secret.
-// Resolves "coin", "secret", or null if they walked away or timed out.
+// Payment: a gold coin held up to the camera, the button, or a whispered secret.
+// Resolves "seen", "coin", "secret", or null if they walked away or timed out.
 function waitForPayment(timeoutMs) {
   let finish;
+  let done = false;
   const promise = new Promise((resolve) => {
-    let done = false;
     const started = performance.now();
     const check = setInterval(() => {
       const now = performance.now();
@@ -209,6 +209,16 @@ function waitForPayment(timeoutMs) {
     };
     tokenWaiter = () => finish("coin");
   });
+  // Every COIN_LOOK_EVERY, show Claude the camera until it sees a coin held up.
+  promise.watchForCoin = async () => {
+    while (T.coin_look_every > 0 && !done) {
+      const t0 = performance.now();
+      const shot = watcher.snapshot(640);
+      const seen = shot && (await api("/api/coin", { image: shot }).then((r) => r.coin, () => false));
+      if (seen) return finish("seen");
+      await wait(Math.max(0, ms("coin_look_every") - (performance.now() - t0)));
+    }
+  };
   // Call once she has finished speaking, so she never hears herself.
   promise.listenForSecret = async () => {
     while (listening() && tokenWaiter) {
@@ -475,11 +485,14 @@ async function runReading({ paid = false } = {}) {
   if (greet?.greeting) await say(greet.audio, greet.greeting);
   stillHere();
 
+  let seen = false; // they held up a coin and she saw it
   if (!paid) {
     state = "invite";
-    setPrompt(listening() ? "✦ a gold coin… or a secret ✦" : "✦ insert your gold coin ✦");
+    const coin = T.coin_look_every > 0 ? "show me a gold coin" : "a gold coin";
+    setPrompt(listening() ? `✦ ${coin}… or a secret ✦` : `✦ ${coin} ✦`);
     const payment = waitForPayment(ms("pay_timeout"));
     payment.then((v) => v && speaking?.stop()); // paying mid-sentence cuts her off
+    payment.watchForCoin(); // eager kids hold it up before she's done asking
     await sayStock(kid ? "invite_child" : "invite_adult");
     if (!settings.button && !listening()) tokenWaiter?.();
     payment.listenForSecret();
@@ -488,12 +501,18 @@ async function runReading({ paid = false } = {}) {
     clearHeard();
     stillHere();
     if (!paidWith) return sleepAgain();
-    reading.paidWith = paidWith;
+    reading.paidWith = paidWith === "seen" ? "coin" : paidWith;
+    seen = paidWith === "seen";
   }
 
   if (reading.paidWith === "secret") {
     sound.shimmer();
     await sayStock(kid ? "secret_child" : "secret_adult");
+  } else if (seen) {
+    // She saw it; they drop it in the cup themselves, and she hears it land.
+    await sayStock(kid ? "coin_seen_child" : "coin_seen_adult");
+    await wait(ms("coin_cup"));
+    sound.coin();
   } else {
     sound.coin();
     await wait(ms("coin_pause"));

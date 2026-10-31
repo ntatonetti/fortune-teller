@@ -140,6 +140,19 @@ ASKED_SCHEMA = {
     "additionalProperties": False,
 }
 
+COIN_SYSTEM = """\
+You are the eyes of a fortune-teller booth at a Halloween party. The fortune teller has asked the guest to pay by holding a gold coin up to the glass so she can see it. Look at this camera frame and decide whether someone is showing her a coin.
+
+Yes: a coin or coin-like token is visible in someone's hand or fingers: a plastic pirate doubloon, a chocolate coin in gold foil, a real coin, a poker chip. Small, blurry or half-hidden by fingers still counts if it is plausibly a coin.
+No: no coin in anyone's hand; a coin only printed on a costume or worn as jewelry; an empty hand held up."""
+
+COIN_SCHEMA = {
+    "type": "object",
+    "properties": {"coin": {"type": "boolean", "description": "True if someone is holding up a coin or coin-like token."}},
+    "required": ["coin"],
+    "additionalProperties": False,
+}
+
 
 def is_childlike(audience: str) -> bool:
     return audience in ("child", "mixed")
@@ -180,7 +193,7 @@ async def _ask(
     started = time.time()
     response, output, error = await _call(schema, effort, max_tokens, content, timeout, model, system)
     kind = {id(GREET_SCHEMA): "greet", id(FORTUNE_SCHEMA): "fortune", id(TAROT_SCHEMA): "fortune",
-            id(ASKED_SCHEMA): "asked", id(PROBE_SCHEMA): "probe"}.get(id(schema), "other")
+            id(ASKED_SCHEMA): "asked", id(COIN_SCHEMA): "coin", id(PROBE_SCHEMA): "probe"}.get(id(schema), "other")
     history.record(kind, model=model, effort=effort, system=system, content=content, started=started,
                    response=response, output=output, error=error)
     return output
@@ -291,6 +304,20 @@ async def asked(question: str, kid: bool, prompt: str = "") -> bool | None:
         system=ANSWERED_SYSTEM if prompt else ASKED_SYSTEM,
     )
     return data.get("done") if data else None
+
+
+async def coin_shown(jpeg_b64: str) -> bool | None:
+    """Whether someone in the frame is holding up a coin (None if Claude is unavailable)."""
+    data = await _ask(
+        COIN_SCHEMA,
+        "low",
+        1000,
+        [_image_block(jpeg_b64), {"type": "text", "text": "Is someone holding up a coin?"}],
+        timeout=5,  # she asks again a moment later anyway
+        model=config.COIN_MODEL,
+        system=COIN_SYSTEM,
+    )
+    return data.get("coin") if data else None
 
 
 def spread(cards: list[str], kid: bool) -> list[str]:

@@ -183,6 +183,17 @@ async def greet(frame: Frame):
     return {**g.model_dump(), "audio": _audio_url(audio)}
 
 
+@app.post("/api/coin")
+async def coin(frame: Frame):
+    """Whether they're holding a coin up to the glass, to pay."""
+    shown = await oracle.coin_shown(_b64(frame.image))
+    if shown is None:
+        raise HTTPException(503, "Claude unavailable")
+    if shown:
+        log.info("coin: seen")
+    return {"coin": shown}
+
+
 @app.post("/api/asked")
 async def asked(heard: Heard):
     done = await oracle.asked(heard.question, heard.kid, heard.prompt)
