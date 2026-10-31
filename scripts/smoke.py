@@ -6,7 +6,8 @@ and also screenshots the alignment screen. SECRET=1 pays with a whispered secret
 asks a question (a fake microphone stands in for speech recognition). WALKAWAY=1 has
 the guest walk off at the payment step (WALKAWAY=speak: during the fortune) and checks that she shuts down. A steady fake face
 stands in for the camera so the fake video's flicker can't trigger walk-away. With FOLLOW_UP and TAROT on (the
-default), the guest asks a question, answers each of hers, and says "stop" for each card.
+default), the guest asks a question, answers each of hers, and says "stop" for each card
+(ENOUGH=n: says "enough" after n cards).
 """
 
 import sys
@@ -124,6 +125,10 @@ with sync_playwright() as p:
             page.wait_for_timeout(1100)
             if not page.evaluate("window.oracleChoosing()"):
                 print("FAIL: chatter stopped the cards")
+            if n and n == int(os.getenv("ENOUGH") or 0):
+                page.evaluate("window.oracleHear(\"that's enough\")")
+                print("said enough after", n)
+                continue
             page.evaluate("window.oracleHear('stop')")
             page.wait_for_timeout(400)
             print("drew:", page.evaluate("window.oracleReading().cards").pop())

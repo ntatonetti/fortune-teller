@@ -87,7 +87,8 @@ COIN_MODEL = _setting("COIN_MODEL", "claude-haiku-5-5", "looks for the gold coin
 
 _section = "The conversation"
 FOLLOW_UP = _setting("FOLLOW_UP", True, "adults: after their question, she asks them one back", bool)
-TAROT = _setting("TAROT", True, "adults: they draw three tarot cards in her ball; she asks about the first, then reads them one by one", bool)
+TAROT = _setting("TAROT", True, "adults: they draw tarot cards in her ball; she asks about the first, then reads them one by one", bool)
+CARDS = _setting("CARDS", 3, "adults: the most tarot cards they draw; they can say \"enough\" sooner", int, span=[1, 5, 1])
 
 # Voice
 _section = "Her voice"

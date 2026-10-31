@@ -50,8 +50,12 @@ HELP: dict[str, tuple[str, str]] = {
         "true; false for a shorter reading with no back-and-forth",
     ),
     "TAROT": (
-        "Before she consults, the guest draws three cards, their past, present and future: cards shuffle through her crystal ball, and the one showing when they say \"stop\" (or \"this one\", \"now\"...) is theirs. She turns the first one over and asks them about it, then reads the fortune card by card, each card back in her ball as she speaks of it. The cards print on the ticket. Adults only: kids just pay and ask their question. With FOLLOW_UP also on, each adult reading is one or the other, at random. Off, she reads from a random omen as before.",
+        "Before she consults, the guest draws up to CARDS cards (three by default: their past, present and future): cards shuffle through her crystal ball, and the one showing when they say \"stop\" (or \"this one\", \"now\"...) is theirs. She turns the first one over and asks them about it, then reads the fortune card by card, each card back in her ball as she speaks of it. The cards print on the ticket. Adults only: kids just pay and ask their question. With FOLLOW_UP also on, each adult reading is one or the other, at random. Off, she reads from a random omen as before.",
         "true; false for her old single fortune",
+    ),
+    "CARDS": (
+        "The most tarot cards an adult draws: their past, present and future at 3, then what stands in their way and where it all leads at 4 and 5. After the first card they can say \"enough\" (or \"no more\", \"that's all\", \"done\") to stop drawing, and she reads just the cards they drew.",
+        "3; 1 for a single card and a quicker reading",
     ),
     # Her voice
     "ELEVENLABS_VOICE_ID": (

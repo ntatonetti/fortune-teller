@@ -94,12 +94,19 @@ STOCK_LINES: dict[str, list[str]] = {
     ],
     # The tarot draw: cards shuffle through her ball until they choose.
     "draw_adult": [
-        "Now... three cards. Your past, your present, your future. Watch the glass... and when a card calls to you, say stop.",
-        "The deck is restless tonight. Three cards: what was, what is, what will be. When one calls your name... tell it to stop.",
+        "Now... the cards. Your past, your present, your future. Watch the glass... and when a card calls to you, say stop. Seen enough? Say enough.",
+        "The deck is restless tonight. What was, what is, what will be... When one calls your name, tell it to stop. And when you have seen enough... say so.",
+    ],
+    "draw_one": [  # CARDS=1
+        "Now... one card. Watch the glass... and when it calls to you, say stop.",
+        "The deck is restless tonight. One card for you... When it calls your name, tell it to stop.",
     ],
     "card_past": ["Your past...", "This one... the past.", "The past..."],
     "card_present": ["Your present...", "And now... the present.", "The present..."],
-    "card_future": ["And your future...", "Last of all... the future.", "The future..."],
+    "card_future": ["And your future...", "And this one... the future.", "The future..."],
+    "card_obstacle": ["What stands in your way...", "And this one... what blocks your path."],
+    "card_outcome": ["And where it all leads...", "Last of all... where it ends."],
+    "cards_enough": ["Enough, then. The cards have spoken.", "As you wish... these will do."],
     "card_chooses": ["Hmm... this one chooses you.", "The card has chosen for you."],
     "consult_adult": [
         "Hmm... the gears are turning... the glass grows cloudy...",

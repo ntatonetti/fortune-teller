@@ -635,11 +635,22 @@ def test_tarot_fortune_is_read_card_by_card(monkeypatch):
     talk = [{"she": "Heart or coin?", "guest": "coin"}]
     f = asyncio.run(oracle.fortune("x" * 200, "adult", "a pirate", [], question="Rich?", talk=talk,
                                    cards=["The Tower", "The Star", "The Sun"]))
-    assert seen["schema"] is oracle.TAROT_SCHEMA
-    assert "three tarot cards they drew (past: The Tower, present: The Star, future: The Sun)" in seen["text"]
+    assert seen["schema"] is oracle.TAROT_SCHEMAS[3]
+    assert "the 3 tarot cards they drew (past: The Tower, present: The Star, future: The Sun)" in seen["text"]
     assert "<answer>coin</answer>" in seen["text"]
     assert f.cards == ["The Tower", "The Star", "The Sun"]
     assert f.readings == ["The Tower... it fell.", "The Star... hope.", "The Sun... gold."]
+
+    # they said "enough" after two cards: just those two are read
+    f = asyncio.run(oracle.fortune("x" * 200, "adult", "a pirate", [], cards=["The Tower", "The Star"]))
+    assert seen["schema"] is oracle.TAROT_SCHEMAS[2] and "future" not in seen["schema"]["required"]
+    assert "the 2 tarot cards they drew (past: The Tower, present: The Star)" in seen["text"]
+    assert f.readings == ["The Tower... it fell.", "The Star... hope."]
+
+    # more cards than CARDS allows: no spread
+    monkeypatch.setattr(oracle.config, "CARDS", 2)
+    assert oracle.spread(["The Tower", "The Star"], kid=False) == ["The Tower", "The Star"]
+    assert oracle.spread(["The Tower", "The Star", "The Sun"], kid=False) == []
 
     # no spread (or a kid, who doesn't draw cards): the old single fortune from a random sign
     f = asyncio.run(oracle.fortune("x" * 200, "child", "a fairy", [], cards=["The Fool", "The Star", "The Sun"]))

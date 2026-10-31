@@ -94,6 +94,7 @@ async def get_config():
         "timings": config.TIMINGS,
         "follow_up": config.FOLLOW_UP,
         "tarot": config.TAROT,
+        "spread": variety.SPREAD[:config.CARDS],  # the places of the cards they may draw
         "deck": {
             "adult": [{"name": n, "img": variety.card_image(n)} for n in variety.TAROT],
         },

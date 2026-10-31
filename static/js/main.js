@@ -320,10 +320,13 @@ async function askBack(probeP, kid) {
 // Words that stop the cards: "stop!", "this one", "now"... Anything else (the
 // friends watching, chatting) lets them keep shuffling.
 const STOP_WORDS = /\b(stop\w*|halt|freeze|now|wait|pick|choose|yes|this one|that one|that's it|that's the one)\b/i;
+// After the first card, these end the drawing early ("that's enough for now").
+const ENOUGH_WORDS = /\b(enough|no more|that's all|that is all|i'm done|done|finished)\b/i;
 
 // Resolves how a card was chosen: "said" (they said stop), "press" (Space, for
-// the operator), "fate" (nobody chose in time) or "gone" (they walked away).
-function pickCard() {
+// the operator), "fate" (nobody chose in time), "gone" (they walked away) or,
+// when `canEnd`, "enough" (they want no more cards).
+function pickCard(canEnd) {
   const waitMs = listening() ? ms("draw_wait") : between(1500, 3500);
   return new Promise((resolve) => {
     let done = false;
@@ -341,7 +344,8 @@ function pickCard() {
       else if (performance.now() - started > waitMs) finish("fate");
     }, 100);
     tokenWaiter = () => finish("press");
-    const stopped = (t) => STOP_WORDS.test(t) && (finish("said"), true);
+    const stopped = (t) =>
+      canEnd && ENOUGH_WORDS.test(t) ? (finish("enough"), true) : STOP_WORDS.test(t) && (finish("said"), true);
     (async () => {
       while (!done && listening()) {
         const t0 = performance.now();
@@ -353,34 +357,41 @@ function pickCard() {
   });
 }
 
-// They draw their past, present and future: the deck shuffles through her
-// ball, and the card showing when they say "stop" is theirs. Then she turns
-// the first one over and asks them about it. Adults only.
+// They draw up to CARDS cards (past, present, future...): the deck shuffles
+// through her ball, and the card showing when they say "stop" is theirs; after
+// the first, "enough" ends it. Then she turns the first one over and asks them
+// about it. Adults only.
 async function drawCards() {
   const cards = deck;
-  if (cards.length < 3) return;
+  const places = server.spread || [];
+  if (!places.length || cards.length < places.length) return;
   state = "draw";
   puppet.set({ eyeX: 0, eyeY: 1, lidL: 0.7, lidR: 0.7 }); // she looks down into the ball
   puppet.ballTarget = 0.8;
   sound.ball(0.8);
   puppet.deck = cards;
   puppet.shuffling = true;
-  await sayStock("draw_adult");
+  await sayStock(places.length > 1 ? "draw_adult" : "draw_one");
   stillHere();
-  for (const place of ["past", "present", "future"]) {
+  for (const [i, place] of places.entries()) {
     puppet.deck = cards.filter((c) => !reading.cards.includes(c));
     puppet.shuffling = true;
-    setPrompt("✦ say “stop” when a card calls to you ✦");
+    setPrompt(i ? "✦ “stop” for another card · “enough” if you’ve seen enough ✦" : "✦ say “stop” when a card calls to you ✦");
     sound.cue();
-    const how = await pickCard();
+    const how = await pickCard(i > 0);
     stillHere();
     puppet.shuffling = false;
+    if (how === "enough") {
+      if (listening()) reading.aboutCard = probe("card");
+      await sayStock("cards_enough");
+      break;
+    }
     const card = puppet.deck.includes(puppet.card) ? puppet.card : puppet.deck[0];
     puppet.card = card;
     reading.cards.push(card);
     setPrompt(`✦ ${card.name} ✦`);
     sound.shimmer();
-    if (reading.cards.length === 3 && listening()) reading.aboutCard = probe("card"); // written while she names it
+    if (reading.cards.length === places.length && listening()) reading.aboutCard = probe("card"); // written while she names it
     if (how === "fate") await sayStock("card_chooses");
     await sayStock(`card_${place}`);
     await wait(ms("card_hold"));

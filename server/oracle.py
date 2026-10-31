@@ -89,25 +89,29 @@ FORTUNE_SCHEMA = {
 }
 
 
-# A fortune read from a three-card spread: a few words per card, then the close.
-TAROT_SCHEMA = {
-    **FORTUNE_SCHEMA,
-    "properties": {
-        **FORTUNE_SCHEMA["properties"],
-        **{
-            place: {
+# A fortune read from the cards they drew (1 to CARDS): a few words per card, then the close.
+def _tarot_schema(places: list[str]) -> dict:
+    return {
+        **FORTUNE_SCHEMA,
+        "properties": {
+            **FORTUNE_SCHEMA["properties"],
+            **{
+                place: {
+                    "type": "string",
+                    "description": f"Spoken aloud as you turn over the card of their {place.upper()}: name the card and read it for them, tied to their question and what they told you. ADULT: 20-40 words. CHILD: 12-25 words.",
+                }
+                for place in places
+            },
+            "spoken": {
                 "type": "string",
-                "description": f"Spoken aloud as you turn over the card of their {place.upper()}: name the card and read it for them, tied to their question and what they told you. ADULT: 20-40 words. CHILD: 12-25 words.",
-            }
-            for place in variety.SPREAD
+                "description": "Spoken aloud after the cards: draw them together and answer their question. ADULT: 40-70 words. CHILD: 25-45 words. Weave in a specific costume detail, the lucky number, and the task. If you mention the printout they receive, call it their ticket (tarot cards are still cards).",
+            },
         },
-        "spoken": {
-            "type": "string",
-            "description": "Spoken aloud after the three cards: draw them together and answer their question. ADULT: 40-70 words. CHILD: 25-45 words. Weave in a specific costume detail, the lucky number, and the task. If you mention the printout they receive, call it their ticket (tarot cards are still cards).",
-        },
-    },
-    "required": FORTUNE_SCHEMA["required"] + variety.SPREAD,
-}
+        "required": FORTUNE_SCHEMA["required"] + places,
+    }
+
+
+TAROT_SCHEMAS = {n: _tarot_schema(variety.SPREAD[:n]) for n in range(1, len(variety.SPREAD) + 1)}
 
 PROBE_SCHEMA = {
     "type": "object",
@@ -192,8 +196,8 @@ async def _ask(
     system = system or persona()
     started = time.time()
     response, output, error = await _call(schema, effort, max_tokens, content, timeout, model, system)
-    kind = {id(GREET_SCHEMA): "greet", id(FORTUNE_SCHEMA): "fortune", id(TAROT_SCHEMA): "fortune",
-            id(ASKED_SCHEMA): "asked", id(COIN_SCHEMA): "coin", id(PROBE_SCHEMA): "probe"}.get(id(schema), "other")
+    kind = {id(GREET_SCHEMA): "greet", id(FORTUNE_SCHEMA): "fortune", id(ASKED_SCHEMA): "asked",
+            id(COIN_SCHEMA): "coin", id(PROBE_SCHEMA): "probe", **{id(t): "fortune" for t in TAROT_SCHEMAS.values()}}.get(id(schema), "other")
     history.record(kind, model=model, effort=effort, system=system, content=content, started=started,
                    response=response, output=output, error=error)
     return output
@@ -321,9 +325,13 @@ async def coin_shown(jpeg_b64: str) -> bool | None:
 
 
 def spread(cards: list[str], kid: bool) -> list[str]:
-    """The cards they drew, if they're a whole spread of real cards; else none.
+    """The cards they drew, if they're 1 to CARDS real cards; else none.
     Kids don't draw cards: they pay and ask their question."""
-    return cards if not kid and len(cards) == len(variety.SPREAD) and all(c in variety.TAROT for c in cards) else []
+    return cards if not kid and 1 <= len(cards) <= config.CARDS and all(c in variety.TAROT for c in cards) else []
+
+
+def _drew(cards: list[str]) -> str:
+    return f"the {'tarot card' if len(cards) == 1 else f'{len(cards)} tarot cards'} they drew ({_cards(cards)})"
 
 
 def _talk(talk: list[dict]) -> str:
@@ -367,7 +375,7 @@ async def probe(
         else "They did not ask a question out loud; they keep it in their heart."
     )
     so_far = f"\n\nYou have already asked them:\n{_talk(talk)}" if talk else ""
-    drew = f"\n\nThey drew three tarot cards: {_cards(cards)}." if cards else ""
+    drew = f"\n\nThese are {_drew(cards)}." if cards else ""
     data = await _ask(
         PROBE_SCHEMA,
         "low",
@@ -401,7 +409,7 @@ async def fortune(
     kid = is_childlike(audience_hint)
     cards = spread(cards or [], kid)
     lucky = variety.pick_lucky([g["lucky"] for g in recent_guests if isinstance(g.get("lucky"), int)])
-    sign = f"the three tarot cards they drew ({_cards(cards)})" if cards else variety.pick_sign(kid)
+    sign = _drew(cards) if cards else variety.pick_sign(kid)
     told = _avoid(
         "Fortunes you already told tonight (opening words | omen | task)",
         [f"{g['opener']}... | {g.get('title', '')} | {g.get('task', '')}" for g in recent_guests if g.get("opener")],
@@ -432,9 +440,10 @@ async def fortune(
             "\n\nYou drew them out before the reading (their words transcribed from speech, so they may be garbled):\n"
             f"{_talk(talk)}\nUse what they told you, so they can tell you listened. Never repeat anything crude or too personal."
         )
-    brief = _brief("spoken` and each of `" + "`, `".join(variety.SPREAD) if cards else "spoken", max_words)
+    places = variety.SPREAD[:len(cards)]
+    brief = _brief("spoken` and each of `" + "`, `".join(places) if cards else "spoken", max_words)
     data = await _ask(
-        TAROT_SCHEMA if cards else FORTUNE_SCHEMA,
+        TAROT_SCHEMAS[len(cards)] if cards else FORTUNE_SCHEMA,
         config.FORTUNE_EFFORT,
         8000,
         [
@@ -455,7 +464,7 @@ async def fortune(
     if data:
         try:
             result = Fortune(**data, question=question, cards=cards,
-                             readings=[data.get(place, "") for place in variety.SPREAD] if cards else [])
+                             readings=[data.get(place, "") for place in places])
             # Stay on the cautious side: once a child was seen, it is a child reading.
             if is_childlike(audience_hint) and not is_childlike(result.audience):
                 result.audience = audience_hint
