@@ -36,7 +36,7 @@ def test_endpoints_when_claude_is_down():
         cfg = client.get("/api/config").json()
         assert cfg["flickers"] == 3
         assert cfg["flicker_opacity"] == 1 and cfg["kid_flicker"] is False
-        assert cfg["timings"]["wake_hold"] == 0.7 and cfg["timings"]["glitch_at_min"] == 0.3
+        assert cfg["timings"]["wake_hold"] == 0.4 and cfg["timings"]["glitch_at_min"] == 0.3
         shown = {s["name"]: s for s in cfg["settings"]}
         assert shown["KID_FLICKER"]["value"] is False and shown["WAKE_HOLD_S"]["about"]
         assert not any("KEY" in n for n in shown)  # behaviour and voice only, no secrets

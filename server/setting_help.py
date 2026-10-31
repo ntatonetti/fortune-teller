@@ -111,7 +111,7 @@ HELP: dict[str, tuple[str, str]] = {
     # Sleep and waking
     "WAKE_HOLD_S": (
         "Someone must stand close enough (the wake distance, set with [ and ] at the booth) for this long before she wakes. Too short and passers-by wake her; too long and guests wonder whether she's on.",
-        "0.7: a brief stop in front of her is enough",
+        "0.4: a brief stop in front of her is enough",
     ),
     "WAKE_PAUSE_S": (
         "After waking, she looks at the guest for at least this long before greeting, which feels deliberate rather than instant. The greeting itself is being written meanwhile.",

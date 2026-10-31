@@ -141,7 +141,7 @@ _SECTIONS = {
 }
 _TIMINGS = {
     # sleep and waking
-    "WAKE_HOLD_S": (0.7, "a face must stay at the booth this long before she wakes", (0, 5, 0.1)),
+    "WAKE_HOLD_S": (0.4, "a face must stay at the booth this long before she wakes", (0, 5, 0.1)),
     "WAKE_PAUSE_S": (1.9, "after waking she looks at them at least this long before the greeting", (0, 6, 0.1)),
     "DIM_S": (0.9, "her light fading down asleep or coming up awake", (0.1, 3, 0.1)),
     "FALL_ASLEEP_S": (1.6, "after a reading, until she's asleep and can be woken again", (0, 8, 0.1)),
